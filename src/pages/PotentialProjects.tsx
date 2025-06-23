@@ -2119,322 +2119,379 @@ const PotentialProjects: React.FC = () => {
 
                 <Divider />
 
-                {/* 根据阶段显示不同信息 */}
-                {currentRecord.projectPhase === '前期洽谈' && currentRecord.earlyStage && (
-                  <div>
-                    <Title level={5}>前期洽谈信息</Title>
-                    <Row gutter={[16, 8]}>
-                      <Col span={12}>
-                        <Text strong>联系人: </Text>
-                        <Text>{currentRecord.earlyStage.contact}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>联系电话: </Text>
-                        <Text>{currentRecord.earlyStage.contactPhone}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>租赁面积: </Text>
-                        <Text>{currentRecord.earlyStage.leaseArea?.toLocaleString()} ㎡</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>租赁单价: </Text>
-                        <Text>¥{currentRecord.earlyStage.leasePrice}/㎡/天</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>付款方式: </Text>
-                        <Text>{currentRecord.earlyStage.paymentMethod}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>合作意向: </Text>
-                        <Progress
-                          percent={currentRecord.earlyStage.intentionLevel}
-                          style={{ width: 150 }}
-                        />
-                      </Col>
-                      {currentRecord.earlyStage.mainCompetitors && (
-                        <Col span={24}>
-                          <Text strong>主要竞争对手: </Text>
-                          <Text>{currentRecord.earlyStage.mainCompetitors}</Text>
-                        </Col>
-                      )}
-                    </Row>
-                  </div>
-                )}
-
-                {currentRecord.projectPhase === '市场调研' && currentRecord.marketResearch && (
-                  <div>
-                    <Title level={5}>市场调研信息</Title>
-                    <Row gutter={[16, 8]}>
-                      <Col span={24}>
-                        <Text strong>运营类型: </Text>
-                        {currentRecord.marketResearch.operationType?.map(type => (
-                          <Tag key={type} color="blue" style={{ marginLeft: 8 }}>
-                            {type}
-                          </Tag>
-                        ))}
-                      </Col>
-                      <Col span={24}>
-                        <Text strong><EnvironmentOutlined /> 所在位置: </Text>
-                        <Text>{currentRecord.marketResearch.location}</Text>
-                      </Col>
-                      <Col span={24}>
-                        <Text strong>产权方信息: </Text>
-                        <Text>{currentRecord.marketResearch.propertyOwnerInfo}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>楼宇标准: </Text>
-                        <Text>{currentRecord.marketResearch.buildingStandard}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>是否独家: </Text>
-                        <Text>{currentRecord.marketResearch.isExclusive ? '是' : '否'}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>市场价: </Text>
-                        <Text>¥{currentRecord.marketResearch.marketPrice}/㎡/天</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>出租率: </Text>
-                        <Text>{currentRecord.marketResearch.occupancyRate}%</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>是否孵化器: </Text>
-                        <Text>{currentRecord.marketResearch.isIncubator ? '是' : '否'}</Text>
-                      </Col>
-                    </Row>
-                  </div>
-                )}
-
-                {currentRecord.projectPhase === '商务条款' && currentRecord.businessTerms && (
-                  <div>
-                    <Title level={5}>商务条款信息</Title>
-                    <Row gutter={[16, 8]}>
-                      <Col span={12}>
-                        <Text strong>联系人: </Text>
-                        <Text>{currentRecord.businessTerms.contact}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>联系电话: </Text>
-                        <Text>{currentRecord.businessTerms.contactPhone}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>租赁面积: </Text>
-                        <Text>{currentRecord.businessTerms.leaseArea?.toLocaleString()} ㎡</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>租赁楼层: </Text>
-                        <Text>{currentRecord.businessTerms.leaseFloor}</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>租赁单价: </Text>
-                        <Text>¥{currentRecord.businessTerms.leasePrice}/㎡/天</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>租赁年限: </Text>
-                        <Text>{currentRecord.businessTerms.leaseTerm} 年</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>物业费单价: </Text>
-                        <Text>¥{currentRecord.businessTerms.propertyFeePrice}/㎡/月</Text>
-                      </Col>
-                      <Col span={12}>
-                        <Text strong>合作意向: </Text>
-                        <Progress
-                          percent={currentRecord.businessTerms.intentionLevel}
-                          style={{ width: 150 }}
-                        />
-                      </Col>
-                    </Row>
-                    
-                    {currentRecord.businessTerms.rentIncreases && currentRecord.businessTerms.rentIncreases.length > 0 && (
-                      <div style={{ marginTop: 16 }}>
-                        <Text strong>租金递增: </Text>
-                        <List
-                          size="small"
-                          dataSource={currentRecord.businessTerms.rentIncreases}
-                          renderItem={(item) => (
-                            <List.Item>
-                              {item.increaseTime}: ¥{item.increasedPrice}/㎡/天
-                            </List.Item>
-                          )}
-                        />
-                      </div>
-                    )}
-                    
-                    {currentRecord.businessTerms.freeRentPeriods && currentRecord.businessTerms.freeRentPeriods.length > 0 && (
-                      <div style={{ marginTop: 16 }}>
-                        <Text strong>免租期: </Text>
-                        <List
-                          size="small"
-                          dataSource={currentRecord.businessTerms.freeRentPeriods}
-                          renderItem={(item) => (
-                            <List.Item>
-                              第{item.year}年: {item.days}天
-                              {item.startDate && ` (${item.startDate} ~ ${item.endDate})`}
-                            </List.Item>
-                          )}
-                        />
-                      </div>
-                    )}
-
-                    {/* 自动计算结果展示 */}
-                    <Divider style={{ margin: '16px 0' }}>自动计算结果</Divider>
-                    {(() => {
-                      const formData = { businessTerms: currentRecord.businessTerms };
-                      const depositResult = calculateDepositAmount(formData);
-                      const paymentResult = calculateFirstPayment(formData);
-
-                      return (
-                        <Row gutter={16}>
-                          <Col span={12}>
-                            <Card size="small" title="租赁保证金" style={{ backgroundColor: '#f0f9ff' }}>
-                              <div style={{ fontSize: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                  <span>租金保证金：</span>
-                                  <span>¥{depositResult.rentDeposit.toLocaleString()}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                  <span>物业费保证金：</span>
-                                  <span>¥{depositResult.propertyDeposit.toLocaleString()}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
-                                  <span>保证金总计：</span>
-                                  <span style={{ color: '#1890ff' }}>¥{depositResult.totalDeposit.toLocaleString()}</span>
-                                </div>
-                              </div>
-                            </Card>
-                          </Col>
-                          <Col span={12}>
-                            <Card size="small" title="首期款" style={{ backgroundColor: '#f6ffed' }}>
-                              <div style={{ fontSize: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                  <span>首期租金：</span>
-                                  <span>¥{paymentResult.rentPayment.toLocaleString()}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                  <span>首期物业费：</span>
-                                  <span>¥{paymentResult.propertyPayment.toLocaleString()}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
-                                  <span>首期款总计：</span>
-                                  <span style={{ color: '#52c41a' }}>¥{paymentResult.totalPayment.toLocaleString()}</span>
-                                </div>
-                                {paymentResult.rentPaymentStartDate && (
-                                  <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
-                                    <div>租金期间：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}</div>
-                                    <div>物业期间：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}</div>
-                                  </div>
-                                )}
-                              </div>
-                            </Card>
-                          </Col>
-                        </Row>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {currentRecord.projectPhase === '签订合同' && currentRecord.contractSigned && (
-                  <div>
-                    <Title level={5}>合同信息</Title>
-                    
-                    {/* 商务条款联系信息 */}
-                    {currentRecord.businessTerms && (currentRecord.businessTerms.contact || currentRecord.businessTerms.contactPhone) && (
-                      <div style={{ marginBottom: 16 }}>
-                        <Card size="small" title="商务条款联系信息" style={{ backgroundColor: '#f0f9ff' }}>
-                          <Row gutter={16}>
-                            {currentRecord.businessTerms.contact && (
-                              <Col span={12}>
-                                <Text strong>联系人：</Text>
-                                <Text>{currentRecord.businessTerms.contact}</Text>
-                              </Col>
-                            )}
-                            {currentRecord.businessTerms.contactPhone && (
-                              <Col span={12}>
-                                <Text strong>联系电话：</Text>
-                                <Text>{currentRecord.businessTerms.contactPhone}</Text>
-                              </Col>
-                            )}
-                          </Row>
-                        </Card>
-                      </div>
-                    )}
-
-                    {/* 甲方信息 */}
-                    {currentRecord.contractSigned.partyA && (
-                      <div style={{ marginBottom: 16 }}>
-                        <Card size="small" title="甲方信息">
-                          <Row gutter={[16, 8]}>
-                            <Col span={12}>
-                              <Text strong>企业单位：</Text>
-                              <Text>{currentRecord.contractSigned.partyA.companyName}</Text>
-                            </Col>
-                            <Col span={12}>
-                              <Text strong>税号：</Text>
-                              <Text>{currentRecord.contractSigned.partyA.taxNumber}</Text>
-                            </Col>
-                            <Col span={12}>
-                              <Text strong>公司地址：</Text>
-                              <Text>{currentRecord.contractSigned.partyA.companyAddress}</Text>
-                            </Col>
-                            <Col span={12}>
-                              <Text strong>法定代表人：</Text>
-                              <Text>{currentRecord.contractSigned.partyA.legalRepresentative}</Text>
-                            </Col>
-                          </Row>
-                        </Card>
-                      </div>
-                    )}
-
-                    {/* 乙方信息 */}
-                    {currentRecord.contractSigned.partyB && (
-                      <div style={{ marginBottom: 16 }}>
-                        <Card size="small" title="乙方信息">
-                          <Row gutter={[16, 8]}>
-                            <Col span={12}>
-                              <Text strong>企业单位：</Text>
-                              <Text>{currentRecord.contractSigned.partyB.companyName}</Text>
-                            </Col>
-                            <Col span={12}>
-                              <Text strong>税号：</Text>
-                              <Text>{currentRecord.contractSigned.partyB.taxNumber}</Text>
-                            </Col>
-                            <Col span={12}>
-                              <Text strong>公司地址：</Text>
-                              <Text>{currentRecord.contractSigned.partyB.companyAddress}</Text>
-                            </Col>
-                            <Col span={12}>
-                              <Text strong>法定代表人：</Text>
-                              <Text>{currentRecord.contractSigned.partyB.legalRepresentative}</Text>
-                            </Col>
-                          </Row>
-                        </Card>
-                      </div>
-                    )}
-
-                    {/* 合同文件 */}
-                    <div>
-                      <Text strong>合同文件：</Text>
-                      <List
-                        size="small"
-                        dataSource={currentRecord.contractSigned.contractFiles}
-                        renderItem={(file) => (
-                          <List.Item>
-                            <Text>{file.name}</Text>
-                            <Text type="secondary" style={{ marginLeft: 8 }}>
-                              {dayjs(file.uploadTime).format('YYYY-MM-DD')}
-                            </Text>
-                          </List.Item>
-                        )}
-                      />
-                    </div>
-                  </div>
-                )}
-
+                {/* 按照阶段顺序显示所有信息，从新到旧 */}
+                
+                {/* 已放弃阶段 */}
                 {currentRecord.projectPhase === '已放弃' && currentRecord.abandoned && (
-                  <div>
-                    <Title level={5}>放弃原因</Title>
-                    <Text>{currentRecord.abandoned.reason}</Text>
+                  <div style={{ marginBottom: 24 }}>
+                    <Card size="small" title="已放弃" headStyle={{ backgroundColor: '#f5f5f5' }}>
+                      <Text strong>放弃原因：</Text>
+                      <Text>{currentRecord.abandoned.reason}</Text>
+                    </Card>
+                  </div>
+                )}
+
+                {/* 签订合同阶段 */}
+                {currentRecord.contractSigned && (
+                  <div style={{ marginBottom: 24 }}>
+                    <Card 
+                      size="small" 
+                      title="签订合同" 
+                      headStyle={{ 
+                        backgroundColor: currentRecord.projectPhase === '签订合同' ? '#e6f7ff' : '#f5f5f5',
+                        fontWeight: currentRecord.projectPhase === '签订合同' ? 'bold' : 'normal'
+                      }}
+                    >
+                      {/* 商务条款联系信息 */}
+                      {currentRecord.businessTerms && (currentRecord.businessTerms.contact || currentRecord.businessTerms.contactPhone) && (
+                        <div style={{ marginBottom: 16 }}>
+                          <Card size="small" title="商务条款联系信息" style={{ backgroundColor: '#f0f9ff' }}>
+                            <Row gutter={16}>
+                              {currentRecord.businessTerms.contact && (
+                                <Col span={12}>
+                                  <Text strong>联系人：</Text>
+                                  <Text>{currentRecord.businessTerms.contact}</Text>
+                                </Col>
+                              )}
+                              {currentRecord.businessTerms.contactPhone && (
+                                <Col span={12}>
+                                  <Text strong>联系电话：</Text>
+                                  <Text>{currentRecord.businessTerms.contactPhone}</Text>
+                                </Col>
+                              )}
+                            </Row>
+                          </Card>
+                        </div>
+                      )}
+
+                      {/* 甲方信息 */}
+                      {currentRecord.contractSigned.partyA && (
+                        <div style={{ marginBottom: 16 }}>
+                          <Card size="small" title="甲方信息">
+                            <Row gutter={[16, 8]}>
+                              <Col span={12}>
+                                <Text strong>企业单位：</Text>
+                                <Text>{currentRecord.contractSigned.partyA.companyName}</Text>
+                              </Col>
+                              <Col span={12}>
+                                <Text strong>税号：</Text>
+                                <Text>{currentRecord.contractSigned.partyA.taxNumber}</Text>
+                              </Col>
+                              <Col span={12}>
+                                <Text strong>公司地址：</Text>
+                                <Text>{currentRecord.contractSigned.partyA.companyAddress}</Text>
+                              </Col>
+                              <Col span={12}>
+                                <Text strong>法定代表人：</Text>
+                                <Text>{currentRecord.contractSigned.partyA.legalRepresentative}</Text>
+                              </Col>
+                            </Row>
+                          </Card>
+                        </div>
+                      )}
+
+                      {/* 乙方信息 */}
+                      {currentRecord.contractSigned.partyB && (
+                        <div style={{ marginBottom: 16 }}>
+                          <Card size="small" title="乙方信息">
+                            <Row gutter={[16, 8]}>
+                              <Col span={12}>
+                                <Text strong>企业单位：</Text>
+                                <Text>{currentRecord.contractSigned.partyB.companyName}</Text>
+                              </Col>
+                              <Col span={12}>
+                                <Text strong>税号：</Text>
+                                <Text>{currentRecord.contractSigned.partyB.taxNumber}</Text>
+                              </Col>
+                              <Col span={12}>
+                                <Text strong>公司地址：</Text>
+                                <Text>{currentRecord.contractSigned.partyB.companyAddress}</Text>
+                              </Col>
+                              <Col span={12}>
+                                <Text strong>法定代表人：</Text>
+                                <Text>{currentRecord.contractSigned.partyB.legalRepresentative}</Text>
+                              </Col>
+                            </Row>
+                          </Card>
+                        </div>
+                      )}
+
+                      {/* 合同文件 */}
+                      <div>
+                        <Text strong>合同文件：</Text>
+                        <List
+                          size="small"
+                          dataSource={currentRecord.contractSigned.contractFiles}
+                          renderItem={(file) => (
+                            <List.Item>
+                              <Text>{file.name}</Text>
+                              <Text type="secondary" style={{ marginLeft: 8 }}>
+                                {dayjs(file.uploadTime).format('YYYY-MM-DD')}
+                              </Text>
+                            </List.Item>
+                          )}
+                        />
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
+                {/* 商务条款阶段 */}
+                {currentRecord.businessTerms && (
+                  <div style={{ marginBottom: 24 }}>
+                    <Card 
+                      size="small" 
+                      title="商务条款" 
+                      headStyle={{ 
+                        backgroundColor: currentRecord.projectPhase === '商务条款' ? '#e6f7ff' : '#f5f5f5',
+                        fontWeight: currentRecord.projectPhase === '商务条款' ? 'bold' : 'normal'
+                      }}
+                    >
+                      <Row gutter={[16, 8]}>
+                        <Col span={12}>
+                          <Text strong>联系人：</Text>
+                          <Text>{currentRecord.businessTerms.contact}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>联系电话：</Text>
+                          <Text>{currentRecord.businessTerms.contactPhone}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>租赁面积：</Text>
+                          <Text>{currentRecord.businessTerms.leaseArea?.toLocaleString()} ㎡</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>租赁楼层：</Text>
+                          <Text>{currentRecord.businessTerms.leaseFloor}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>租赁单价：</Text>
+                          <Text>¥{currentRecord.businessTerms.leasePrice}/㎡/天</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>租赁年限：</Text>
+                          <Text>{currentRecord.businessTerms.leaseTerm} 年</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>物业费单价：</Text>
+                          <Text>¥{currentRecord.businessTerms.propertyFeePrice}/㎡/月</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>合作意向：</Text>
+                          <Progress
+                            percent={currentRecord.businessTerms.intentionLevel}
+                            style={{ width: 150 }}
+                          />
+                        </Col>
+                      </Row>
+                      
+                      {currentRecord.businessTerms.rentIncreases && currentRecord.businessTerms.rentIncreases.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <Text strong>租金递增：</Text>
+                          <List
+                            size="small"
+                            dataSource={currentRecord.businessTerms.rentIncreases}
+                            renderItem={(item) => (
+                              <List.Item>
+                                {item.increaseTime}: ¥{item.increasedPrice}/㎡/天
+                              </List.Item>
+                            )}
+                          />
+                        </div>
+                      )}
+                      
+                      {currentRecord.businessTerms.freeRentPeriods && currentRecord.businessTerms.freeRentPeriods.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <Text strong>免租期：</Text>
+                          <List
+                            size="small"
+                            dataSource={currentRecord.businessTerms.freeRentPeriods}
+                            renderItem={(item) => (
+                              <List.Item>
+                                第{item.year}年: {item.days}天
+                                {item.startDate && ` (${item.startDate} ~ ${item.endDate})`}
+                              </List.Item>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {/* 自动计算结果展示 */}
+                      <Divider style={{ margin: '16px 0' }}>自动计算结果</Divider>
+                      {(() => {
+                        const formData = { businessTerms: currentRecord.businessTerms };
+                        const depositResult = calculateDepositAmount(formData);
+                        const paymentResult = calculateFirstPayment(formData);
+
+                        return (
+                          <Row gutter={16}>
+                            <Col span={12}>
+                              <Card size="small" title="租赁保证金" style={{ backgroundColor: '#f0f9ff' }}>
+                                <div style={{ fontSize: '12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span>租金保证金：</span>
+                                    <span>¥{depositResult.rentDeposit.toLocaleString()}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span>物业费保证金：</span>
+                                    <span>¥{depositResult.propertyDeposit.toLocaleString()}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
+                                    <span>保证金总计：</span>
+                                    <span style={{ color: '#1890ff' }}>¥{depositResult.totalDeposit.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </Card>
+                            </Col>
+                            <Col span={12}>
+                              <Card size="small" title="首期款" style={{ backgroundColor: '#f6ffed' }}>
+                                <div style={{ fontSize: '12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span>首期租金：</span>
+                                    <span>¥{paymentResult.rentPayment.toLocaleString()}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span>首期物业费：</span>
+                                    <span>¥{paymentResult.propertyPayment.toLocaleString()}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
+                                    <span>首期款总计：</span>
+                                    <span style={{ color: '#52c41a' }}>¥{paymentResult.totalPayment.toLocaleString()}</span>
+                                  </div>
+                                  {paymentResult.rentPaymentStartDate && (
+                                    <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
+                                      <div>租金期间：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}</div>
+                                      <div>物业期间：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </Card>
+                            </Col>
+                          </Row>
+                        );
+                      })()}
+                    </Card>
+                  </div>
+                )}
+
+                {/* 市场调研阶段 */}
+                {currentRecord.marketResearch && (
+                  <div style={{ marginBottom: 24 }}>
+                    <Card 
+                      size="small" 
+                      title="市场调研" 
+                      headStyle={{ 
+                        backgroundColor: currentRecord.projectPhase === '市场调研' ? '#e6f7ff' : '#f5f5f5',
+                        fontWeight: currentRecord.projectPhase === '市场调研' ? 'bold' : 'normal'
+                      }}
+                    >
+                      <Row gutter={[16, 8]}>
+                        <Col span={24}>
+                          <Text strong>运营类型：</Text>
+                          {currentRecord.marketResearch.operationType?.map(type => (
+                            <Tag key={type} color="blue" style={{ marginLeft: 8 }}>
+                              {type}
+                            </Tag>
+                          ))}
+                        </Col>
+                        <Col span={24}>
+                          <Text strong><EnvironmentOutlined /> 所在位置：</Text>
+                          <Text style={{ marginLeft: 8 }}>{currentRecord.marketResearch.location}</Text>
+                        </Col>
+                        <Col span={24}>
+                          <Text strong>产权方信息：</Text>
+                          <Text style={{ marginLeft: 8 }}>{currentRecord.marketResearch.propertyOwnerInfo}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>楼宇标准：</Text>
+                          <Text>{currentRecord.marketResearch.buildingStandard}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>是否独家：</Text>
+                          <Text>{currentRecord.marketResearch.isExclusive ? '是' : '否'}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>市场价：</Text>
+                          <Text>¥{currentRecord.marketResearch.marketPrice}/㎡/天</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>出租率：</Text>
+                          <Text>{currentRecord.marketResearch.occupancyRate}%</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>是否孵化器：</Text>
+                          <Text>{currentRecord.marketResearch.isIncubator ? '是' : '否'}</Text>
+                        </Col>
+                        {currentRecord.marketResearch.buildDate && (
+                          <Col span={12}>
+                            <Text strong>建设时间：</Text>
+                            <Text>{currentRecord.marketResearch.buildDate}</Text>
+                          </Col>
+                        )}
+                        {currentRecord.marketResearch.propertyCompany && (
+                          <Col span={12}>
+                            <Text strong>物业公司：</Text>
+                            <Text>{currentRecord.marketResearch.propertyCompany}</Text>
+                          </Col>
+                        )}
+                        {currentRecord.marketResearch.historicalOperator && (
+                          <Col span={12}>
+                            <Text strong>历史运营商：</Text>
+                            <Text>{currentRecord.marketResearch.historicalOperator}</Text>
+                          </Col>
+                        )}
+                      </Row>
+                    </Card>
+                  </div>
+                )}
+
+                {/* 前期洽谈阶段 */}
+                {currentRecord.earlyStage && (
+                  <div style={{ marginBottom: 24 }}>
+                    <Card 
+                      size="small" 
+                      title="前期洽谈" 
+                      headStyle={{ 
+                        backgroundColor: currentRecord.projectPhase === '前期洽谈' ? '#e6f7ff' : '#f5f5f5',
+                        fontWeight: currentRecord.projectPhase === '前期洽谈' ? 'bold' : 'normal'
+                      }}
+                    >
+                      <Row gutter={[16, 8]}>
+                        <Col span={12}>
+                          <Text strong>联系人：</Text>
+                          <Text>{currentRecord.earlyStage.contact}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>联系电话：</Text>
+                          <Text>{currentRecord.earlyStage.contactPhone}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>租赁面积：</Text>
+                          <Text>{currentRecord.earlyStage.leaseArea?.toLocaleString()} ㎡</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>租赁单价：</Text>
+                          <Text>¥{currentRecord.earlyStage.leasePrice}/㎡/天</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>付款方式：</Text>
+                          <Text>{currentRecord.earlyStage.paymentMethod}</Text>
+                        </Col>
+                        <Col span={12}>
+                          <Text strong>合作意向：</Text>
+                          <Progress
+                            percent={currentRecord.earlyStage.intentionLevel}
+                            style={{ width: 150 }}
+                          />
+                        </Col>
+                        {currentRecord.earlyStage.mainCompetitors && (
+                          <Col span={24}>
+                            <Text strong>主要竞争对手：</Text>
+                            <Text style={{ marginLeft: 8 }}>{currentRecord.earlyStage.mainCompetitors}</Text>
+                          </Col>
+                        )}
+                      </Row>
+                    </Card>
                   </div>
                 )}
               </TabPane>
