@@ -133,6 +133,65 @@ const mockData: DetailedPotentialProject[] = [
     createdBy: '李四',
     createdAt: '2024-01-18 09:00',
     updatedAt: '2024-01-18 16:00'
+  },
+  {
+    id: '3',
+    name: '海淀科技大厦C座',
+    projectPhase: '签订合同',
+    priority: 'P0',
+    nextFollowUpTime: '2024-02-05 09:00',
+    followUpBy: '王五',
+    businessTerms: {
+      contact: '刘总',
+      contactPhone: '13900139001',
+      leaseArea: 3000,
+      leaseFloor: '5-6层',
+      leasePrice: 5.2,
+      leaseTerm: 3,
+      paymentMethod: '押3付6',
+      startDate: '2024-03-01',
+      rentIncreases: [],
+      freeRentPeriods: [
+        { year: 1, days: 60, startDate: '2024-03-01', endDate: '2024-04-29' }
+      ],
+      depositItems: ['租金', '物业费'],
+      firstPaymentDate: '2024-02-15',
+      depositPaymentDate: '2024-02-15',
+      propertyFeePrice: 18,
+      intentionLevel: 100
+    },
+    contractSigned: {
+      partyA: {
+        companyName: '北京海淀科技发展有限公司',
+        taxNumber: '91110000123456789X',
+        companyAddress: '北京市海淀区中关村大街1号',
+        legalRepresentative: '张伟'
+      },
+      partyB: {
+        companyName: '创新空间运营管理有限公司',
+        taxNumber: '91110000987654321Y',
+        companyAddress: '北京市朝阳区建国路88号',
+        legalRepresentative: '李明'
+      },
+      contractFiles: [
+        {
+          id: '1',
+          name: '租赁合同正式版.pdf',
+          url: '/contracts/contract_001.pdf',
+          uploadTime: '2024-02-01 14:30:00',
+          fileSize: 2048576
+        }
+      ]
+    },
+    followUpRecords: [
+      { id: '1', content: '合同条款最终确认完成', user: '王五', time: '2024-02-01 14:30' },
+      { id: '2', content: '甲乙双方信息核实无误', user: '王五', time: '2024-02-02 10:00' }
+    ] as ProjectFollowUpRecord[],
+    lastFollowUpTime: '2024-02-02 10:00',
+    lastFollowUpBy: '王五',
+    createdBy: '王五',
+    createdAt: '2024-01-25 09:00',
+    updatedAt: '2024-02-02 10:00'
   }
 ];
 
@@ -927,22 +986,142 @@ const PotentialProjects: React.FC = () => {
 
       case '签订合同':
         return (
-          <>
-            <Form.Item
-              label="合同文件"
-              name={['contractSigned', 'contractFiles']}
-              rules={[{ required: true, message: '请上传合同文件' }]}
-            >
-              <Upload
-                action="/api/upload"
-                listType="text"
-                multiple
-                beforeUpload={() => false}
-              >
-                <Button icon={<UploadOutlined />}>点击上传合同文件</Button>
-              </Upload>
-            </Form.Item>
-          </>
+          <Form.Item dependencies={[['businessTerms', 'contact'], ['businessTerms', 'contactPhone']]}>
+            {({ getFieldValue }) => {
+              const businessTermsContact = getFieldValue(['businessTerms', 'contact']);
+              const businessTermsContactPhone = getFieldValue(['businessTerms', 'contactPhone']);
+              
+              return (
+                <>
+                  {/* 商务条款联系信息展示 */}
+                  {(businessTermsContact || businessTermsContactPhone) && (
+                    <Card size="small" title="商务条款联系信息" style={{ marginBottom: 16, backgroundColor: '#f0f9ff' }}>
+                      <Row gutter={16}>
+                        {businessTermsContact && (
+                          <Col span={12}>
+                            <Text strong>联系人：</Text>
+                            <Text>{businessTermsContact}</Text>
+                          </Col>
+                        )}
+                        {businessTermsContactPhone && (
+                          <Col span={12}>
+                            <Text strong>联系电话：</Text>
+                            <Text>{businessTermsContactPhone}</Text>
+                          </Col>
+                        )}
+                      </Row>
+                    </Card>
+                  )}
+
+                  {/* 甲方信息 */}
+                  <Card size="small" title="甲方信息" style={{ marginBottom: 16 }}>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          label="企业单位"
+                          name={['contractSigned', 'partyA', 'companyName']}
+                          rules={[{ required: true, message: '请输入甲方企业单位' }]}
+                        >
+                          <Input placeholder="请输入甲方企业单位名称" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label="统一社会信用代码/税号"
+                          name={['contractSigned', 'partyA', 'taxNumber']}
+                          rules={[{ required: true, message: '请输入甲方税号' }]}
+                        >
+                          <Input placeholder="请输入统一社会信用代码或税号" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          label="公司地址"
+                          name={['contractSigned', 'partyA', 'companyAddress']}
+                          rules={[{ required: true, message: '请输入甲方公司地址' }]}
+                        >
+                          <Input placeholder="请输入甲方公司地址" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label="法定代表人"
+                          name={['contractSigned', 'partyA', 'legalRepresentative']}
+                          rules={[{ required: true, message: '请输入甲方法定代表人' }]}
+                        >
+                          <Input placeholder="请输入甲方法定代表人姓名" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  {/* 乙方信息 */}
+                  <Card size="small" title="乙方信息" style={{ marginBottom: 16 }}>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          label="企业单位"
+                          name={['contractSigned', 'partyB', 'companyName']}
+                          rules={[{ required: true, message: '请输入乙方企业单位' }]}
+                        >
+                          <Input placeholder="请输入乙方企业单位名称" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label="统一社会信用代码/税号"
+                          name={['contractSigned', 'partyB', 'taxNumber']}
+                          rules={[{ required: true, message: '请输入乙方税号' }]}
+                        >
+                          <Input placeholder="请输入统一社会信用代码或税号" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          label="公司地址"
+                          name={['contractSigned', 'partyB', 'companyAddress']}
+                          rules={[{ required: true, message: '请输入乙方公司地址' }]}
+                        >
+                          <Input placeholder="请输入乙方公司地址" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          label="法定代表人"
+                          name={['contractSigned', 'partyB', 'legalRepresentative']}
+                          rules={[{ required: true, message: '请输入乙方法定代表人' }]}
+                        >
+                          <Input placeholder="请输入乙方法定代表人姓名" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </Card>
+
+                  {/* 合同文件 */}
+                  <Card size="small" title="合同文件">
+                    <Form.Item
+                      label="合同文件"
+                      name={['contractSigned', 'contractFiles']}
+                      rules={[{ required: true, message: '请上传合同文件' }]}
+                    >
+                      <Upload
+                        action="/api/upload"
+                        listType="text"
+                        multiple
+                        beforeUpload={() => false}
+                      >
+                        <Button icon={<UploadOutlined />}>点击上传合同文件</Button>
+                      </Upload>
+                    </Form.Item>
+                  </Card>
+                </>
+              );
+            }}
+          </Form.Item>
         );
 
       case '已放弃':
@@ -2158,19 +2337,97 @@ const PotentialProjects: React.FC = () => {
                 {currentRecord.projectPhase === '签订合同' && currentRecord.contractSigned && (
                   <div>
                     <Title level={5}>合同信息</Title>
-                    <Text strong>合同文件: </Text>
-                    <List
-                      size="small"
-                      dataSource={currentRecord.contractSigned.contractFiles}
-                      renderItem={(file) => (
-                        <List.Item>
-                          <Text>{file.name}</Text>
-                          <Text type="secondary" style={{ marginLeft: 8 }}>
-                            {dayjs(file.uploadTime).format('YYYY-MM-DD')}
-                          </Text>
-                        </List.Item>
-                      )}
-                    />
+                    
+                    {/* 商务条款联系信息 */}
+                    {currentRecord.businessTerms && (currentRecord.businessTerms.contact || currentRecord.businessTerms.contactPhone) && (
+                      <div style={{ marginBottom: 16 }}>
+                        <Card size="small" title="商务条款联系信息" style={{ backgroundColor: '#f0f9ff' }}>
+                          <Row gutter={16}>
+                            {currentRecord.businessTerms.contact && (
+                              <Col span={12}>
+                                <Text strong>联系人：</Text>
+                                <Text>{currentRecord.businessTerms.contact}</Text>
+                              </Col>
+                            )}
+                            {currentRecord.businessTerms.contactPhone && (
+                              <Col span={12}>
+                                <Text strong>联系电话：</Text>
+                                <Text>{currentRecord.businessTerms.contactPhone}</Text>
+                              </Col>
+                            )}
+                          </Row>
+                        </Card>
+                      </div>
+                    )}
+
+                    {/* 甲方信息 */}
+                    {currentRecord.contractSigned.partyA && (
+                      <div style={{ marginBottom: 16 }}>
+                        <Card size="small" title="甲方信息">
+                          <Row gutter={[16, 8]}>
+                            <Col span={12}>
+                              <Text strong>企业单位：</Text>
+                              <Text>{currentRecord.contractSigned.partyA.companyName}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text strong>税号：</Text>
+                              <Text>{currentRecord.contractSigned.partyA.taxNumber}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text strong>公司地址：</Text>
+                              <Text>{currentRecord.contractSigned.partyA.companyAddress}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text strong>法定代表人：</Text>
+                              <Text>{currentRecord.contractSigned.partyA.legalRepresentative}</Text>
+                            </Col>
+                          </Row>
+                        </Card>
+                      </div>
+                    )}
+
+                    {/* 乙方信息 */}
+                    {currentRecord.contractSigned.partyB && (
+                      <div style={{ marginBottom: 16 }}>
+                        <Card size="small" title="乙方信息">
+                          <Row gutter={[16, 8]}>
+                            <Col span={12}>
+                              <Text strong>企业单位：</Text>
+                              <Text>{currentRecord.contractSigned.partyB.companyName}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text strong>税号：</Text>
+                              <Text>{currentRecord.contractSigned.partyB.taxNumber}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text strong>公司地址：</Text>
+                              <Text>{currentRecord.contractSigned.partyB.companyAddress}</Text>
+                            </Col>
+                            <Col span={12}>
+                              <Text strong>法定代表人：</Text>
+                              <Text>{currentRecord.contractSigned.partyB.legalRepresentative}</Text>
+                            </Col>
+                          </Row>
+                        </Card>
+                      </div>
+                    )}
+
+                    {/* 合同文件 */}
+                    <div>
+                      <Text strong>合同文件：</Text>
+                      <List
+                        size="small"
+                        dataSource={currentRecord.contractSigned.contractFiles}
+                        renderItem={(file) => (
+                          <List.Item>
+                            <Text>{file.name}</Text>
+                            <Text type="secondary" style={{ marginLeft: 8 }}>
+                              {dayjs(file.uploadTime).format('YYYY-MM-DD')}
+                            </Text>
+                          </List.Item>
+                        )}
+                      />
+                    </div>
                   </div>
                 )}
 

@@ -124,6 +124,18 @@ export interface DetailedPotentialProject {
 
   // 签订合同阶段字段
   contractSigned?: {
+    partyA?: {                            // 甲方信息
+      companyName: string;                // 企业单位
+      taxNumber: string;                  // 统一社会信用代码/税号
+      companyAddress: string;             // 公司地址
+      legalRepresentative: string;        // 法定代表人
+    };
+    partyB?: {                            // 乙方信息
+      companyName: string;                // 企业单位
+      taxNumber: string;                  // 统一社会信用代码/税号
+      companyAddress: string;             // 公司地址
+      legalRepresentative: string;        // 法定代表人
+    };
     contractFiles: ContractFile[];        // 合同文件
   };
 
