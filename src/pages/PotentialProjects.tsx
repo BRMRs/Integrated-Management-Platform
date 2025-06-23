@@ -70,7 +70,7 @@ const mockData: DetailedPotentialProject[] = [
       leaseFloor: '8-10层',
       leasePrice: 4.5,
       leaseTerm: 5,
-      paymentMethod: '押二付六',
+      paymentMethod: '押2付6',
       startDate: '2024-06-01',
       rentIncreases: [
         { increaseTime: '2025-06-01', increasedPrice: 4.8 },
@@ -542,7 +542,7 @@ const PotentialProjects: React.FC = () => {
                   name={['businessTerms', 'paymentMethod']}
                   rules={[{ required: true, message: '请输入付款方式' }]}
                 >
-                  <Input placeholder="如：押二付六" />
+                  <Input placeholder="如：押2付6" />
                 </Form.Item>
               </Col>
               <Col span={8}>
@@ -614,231 +614,174 @@ const PotentialProjects: React.FC = () => {
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...restField }) => (
-                    <div key={key} style={{ 
-                      border: '1px solid #f0f0f0', 
-                      borderRadius: '6px', 
-                      padding: '16px', 
-                      marginBottom: '12px',
-                      backgroundColor: '#fafafa'
-                    }}>
-                      <Row gutter={16} align="top">
-                        <Col span={4}>
-                          <Form.Item
-                            {...restField}
-                            label="第几年"
-                            name={[name, 'year']}
-                            rules={[{ required: true, message: '请输入年份' }]}
-                            style={{ marginBottom: 0 }}
-                          >
-                            <InputNumber
-                              placeholder="第几年"
-                              style={{ width: '100%' }}
-                              min={1}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={4}>
-                          <Form.Item
-                            {...restField}
-                            label="免租天数"
-                            name={[name, 'days']}
-                            rules={[{ required: true, message: '请输入免租天数' }]}
-                            style={{ marginBottom: 0 }}
-                          >
-                            <InputNumber
-                              placeholder="免租天数"
-                              style={{ width: '100%' }}
-                              addonAfter="天"
-                              min={0}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col span={6}>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <label style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.85)', marginBottom: '4px' }}>
-                              开始时间
-                            </label>
-                            <Form.Item
-                              shouldUpdate={(prevValues: any, currentValues: any) => {
-                                return prevValues.businessTerms?.startDate !== currentValues.businessTerms?.startDate ||
-                                       prevValues.businessTerms?.freeRentPeriods?.[name]?.year !== currentValues.businessTerms?.freeRentPeriods?.[name]?.year ||
-                                       prevValues.businessTerms?.freeRentPeriods?.[name]?.days !== currentValues.businessTerms?.freeRentPeriods?.[name]?.days;
-                              }}
-                              style={{ marginBottom: 0 }}
-                            >
-                              {() => {
-                                const allFormData = editForm.getFieldsValue();
-                                const startDate = allFormData.businessTerms?.startDate;
-                                const currentYear = allFormData.businessTerms?.freeRentPeriods?.[name]?.year;
-                                const currentDays = allFormData.businessTerms?.freeRentPeriods?.[name]?.days;
-                                
-                                let placeholder = "请选择开始时间";
-                                let suggestedDate = '';
-                                
-                                if (startDate && currentYear) {
-                                  try {
-                                    const startDateStr = startDate.format ? startDate.format('YYYY-MM-DD') : startDate;
-                                    const dates = calculateFreeRentDates(startDateStr, currentYear, currentDays || 0);
-                                    suggestedDate = dates.calculatedStartDate;
-                                    placeholder = `建议: ${suggestedDate}`;
-                                  } catch (error) {
-                                    console.error('计算日期出错:', error);
-                                  }
-                                }
-                                
-                                return (
-                                  <div>
-                                    <Form.Item
-                                      {...restField}
-                                      name={[name, 'startDate']}
-                                      style={{ marginBottom: 0 }}
-                                    >
-                                      <DatePicker 
-                                        style={{ width: '100%' }} 
-                                        placeholder={placeholder}
-                                      />
-                                    </Form.Item>
-                                    {suggestedDate && (
-                                      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                                        建议: {suggestedDate}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }}
-                            </Form.Item>
-                          </div>
-                        </Col>
-                        <Col span={6}>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <label style={{ fontSize: '14px', color: 'rgba(0, 0, 0, 0.85)', marginBottom: '4px' }}>
-                              结束时间
-                            </label>
-                            <Form.Item
-                              shouldUpdate={(prevValues: any, currentValues: any) => {
-                                return prevValues.businessTerms?.startDate !== currentValues.businessTerms?.startDate ||
-                                       prevValues.businessTerms?.freeRentPeriods?.[name]?.year !== currentValues.businessTerms?.freeRentPeriods?.[name]?.year ||
-                                       prevValues.businessTerms?.freeRentPeriods?.[name]?.days !== currentValues.businessTerms?.freeRentPeriods?.[name]?.days ||
-                                       prevValues.businessTerms?.freeRentPeriods?.[name]?.startDate !== currentValues.businessTerms?.freeRentPeriods?.[name]?.startDate;
-                              }}
-                              style={{ marginBottom: 0 }}
-                            >
-                              {() => {
-                                const allFormData = editForm.getFieldsValue();
-                                const contractStartDate = allFormData.businessTerms?.startDate;
-                                const year = allFormData.businessTerms?.freeRentPeriods?.[name]?.year;
-                                const days = allFormData.businessTerms?.freeRentPeriods?.[name]?.days;
-                                const customStartDate = allFormData.businessTerms?.freeRentPeriods?.[name]?.startDate;
-                                
-                                let calculatedEndDate = '';
-                                if (contractStartDate && year && days) {
-                                  try {
-                                    const contractStartDateStr = contractStartDate.format ? contractStartDate.format('YYYY-MM-DD') : contractStartDate;
-                                    const customStartDateStr = customStartDate ? (customStartDate.format ? customStartDate.format('YYYY-MM-DD') : customStartDate) : undefined;
-                                    
-                                    const dates = calculateFreeRentDates(
-                                      contractStartDateStr, 
-                                      year, 
-                                      days, 
-                                      customStartDateStr
-                                    );
-                                    calculatedEndDate = dates.calculatedEndDate;
-                                  } catch (error) {
-                                    console.error('计算结束日期出错:', error);
-                                  }
-                                }
-                                
-                                return (
-                                  <div>
-                                    <Form.Item
-                                      {...restField}
-                                      name={[name, 'endDate']}
-                                      style={{ marginBottom: 0 }}
-                                    >
-                                      <DatePicker 
-                                        style={{ width: '100%' }} 
-                                        placeholder="自动计算"
-                                        disabled
-                                        value={calculatedEndDate ? dayjs(calculatedEndDate) : null}
-                                      />
-                                    </Form.Item>
-                                    {calculatedEndDate && (
-                                      <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>
-                                        自动计算: {calculatedEndDate}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              }}
-                            </Form.Item>
-                          </div>
-                        </Col>
-                        <Col span={4}>
-                          <div style={{ paddingTop: '30px' }}>
-                            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-                              <Form.Item
-                                shouldUpdate={(prevValues: any, currentValues: any) => {
-                                  return prevValues.businessTerms?.startDate !== currentValues.businessTerms?.startDate ||
-                                         prevValues.businessTerms?.freeRentPeriods?.[name]?.year !== currentValues.businessTerms?.freeRentPeriods?.[name]?.year ||
-                                         prevValues.businessTerms?.freeRentPeriods?.[name]?.days !== currentValues.businessTerms?.freeRentPeriods?.[name]?.days;
-                                }}
-                                style={{ marginBottom: 0 }}
-                              >
-                                {() => {
-                                  const allFormData = editForm.getFieldsValue();
-                                  const contractStartDate = allFormData.businessTerms?.startDate;
-                                  const year = allFormData.businessTerms?.freeRentPeriods?.[name]?.year;
-                                  const days = allFormData.businessTerms?.freeRentPeriods?.[name]?.days;
-                                  
-                                  const handleAutoFill = () => {
-                                    if (contractStartDate && year && days) {
-                                      try {
-                                        const contractStartDateStr = contractStartDate.format ? contractStartDate.format('YYYY-MM-DD') : contractStartDate;
-                                        const dates = calculateFreeRentDates(contractStartDateStr, year, days);
-                                        
-                                        // 直接设置该字段的值
-                                        editForm.setFieldValue(['businessTerms', 'freeRentPeriods', name, 'startDate'], dayjs(dates.calculatedStartDate));
-                                        // 强制刷新表单
-                                        editForm.validateFields();
-                                      } catch (error) {
-                                        console.error('自动填充出错:', error);
+                    // 使用 shouldUpdate 包裹整行，以便在依赖项变化时重新渲染
+                    <Form.Item
+                      key={key}
+                      shouldUpdate={(prevValues, curValues) => {
+                        const prev = prevValues.businessTerms?.freeRentPeriods?.[name];
+                        const cur = curValues.businessTerms?.freeRentPeriods?.[name];
+                        return (
+                          prevValues.businessTerms?.startDate !== curValues.businessTerms?.startDate ||
+                          prev?.year !== cur?.year ||
+                          prev?.days !== cur?.days ||
+                          prev?.startDate !== cur?.startDate
+                        );
+                      }}
+                      noStyle
+                    >
+                      {({ getFieldValue, setFieldValue }) => {
+                        const contractStartDate = getFieldValue(['businessTerms', 'startDate']);
+                        const freeRentPeriod = getFieldValue(['businessTerms', 'freeRentPeriods', name]) || {};
+                        const { year, days, startDate: customStartDate } = freeRentPeriod;
+
+                        // 调用帮助函数计算日期
+                        const dates = calculateFreeRentDates(contractStartDate, year, days, customStartDate);
+                        const suggestedStartDate = dates ? dates.startDate : null;
+                        const calculatedEndDate = dates ? dates.endDate : null;
+
+                        // 自动更新结束日期到表单中
+                        if (calculatedEndDate) {
+                          const currentEndDate = getFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate']);
+                          if (!currentEndDate || !currentEndDate.isSame(calculatedEndDate, 'day')) {
+                            setFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate'], calculatedEndDate);
+                          }
+                        }
+
+                        return (
+                          <div style={{
+                            border: '1px solid #f0f0f0',
+                            borderRadius: '6px',
+                            padding: '16px',
+                            marginBottom: '12px',
+                            backgroundColor: '#fafafa'
+                          }}>
+                            <Row gutter={16} align="bottom">
+                              <Col span={4}>
+                                <Form.Item
+                                  {...restField}
+                                  label="第几年"
+                                  name={[name, 'year']}
+                                  rules={[{ required: true, message: '请输入年份' }]}
+                                >
+                                  <InputNumber 
+                                    placeholder="年份" 
+                                    style={{ width: '100%' }} 
+                                    min={1}
+                                                                         onChange={(value) => {
+                                       // 当年份改变时，自动设置建议的开始日期
+                                       if (value && contractStartDate) {
+                                         const newDates = calculateFreeRentDates(contractStartDate, value, days || 0, null);
+                                         if (newDates) {
+                                           setFieldValue(['businessTerms', 'freeRentPeriods', name, 'startDate'], newDates.startDate);
+                                           if (days) {
+                                             setFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate'], newDates.endDate);
+                                           }
+                                         }
+                                       }
+                                     }}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={4}>
+                                <Form.Item
+                                  {...restField}
+                                  label="免租天数"
+                                  name={[name, 'days']}
+                                  rules={[{ required: true, message: '请输入天数' }]}
+                                >
+                                  <InputNumber 
+                                    placeholder="天数" 
+                                    style={{ width: '100%' }} 
+                                    addonAfter="天" 
+                                    min={0}
+                                    onChange={(value) => {
+                                      // 当天数改变时，自动更新结束日期
+                                      if (value && year && contractStartDate) {
+                                        const currentStartDate = getFieldValue(['businessTerms', 'freeRentPeriods', name, 'startDate']);
+                                        const newDates = calculateFreeRentDates(contractStartDate, year, value, currentStartDate);
+                                        if (newDates) {
+                                          setFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate'], newDates.endDate);
+                                        }
                                       }
-                                    }
-                                  };
-                                  
-                                  return (
-                                    <Button
-                                      type="link"
-                                      size="small"
-                                      onClick={handleAutoFill}
-                                      style={{ fontSize: '12px', padding: '0' }}
-                                      disabled={!contractStartDate || !year || !days}
-                                    >
-                                      自动填充
-                                    </Button>
-                                  );
-                                }}
-                              </Form.Item>
-                            </div>
-                            <div style={{ textAlign: 'center' }}>
-                              <Button
-                                type="text"
-                                danger
-                                size="small"
-                                icon={<MinusCircleOutlined />}
-                                onClick={() => remove(name)}
-                              />
-                            </div>
+                                    }}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={6}>
+                                <Form.Item
+                                  {...restField}
+                                  label="开始时间"
+                                  name={[name, 'startDate']}
+                                  rules={[{ required: true, message: '请选择开始时间' }]}
+                                >
+                                  <DatePicker
+                                    style={{ width: '100%' }}
+                                    placeholder={suggestedStartDate ? suggestedStartDate.format('YYYY-MM-DD') : '请先填起租日和免租天数'}
+                                    format="YYYY-MM-DD"
+                                    onChange={(date) => {
+                                      // 当开始日期变化时，自动更新结束日期
+                                      if (date && days && year && contractStartDate) {
+                                        const newDates = calculateFreeRentDates(contractStartDate, year, days, date);
+                                        if (newDates) {
+                                          setFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate'], newDates.endDate);
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={6}>
+                                <Form.Item
+                                  {...restField}
+                                  label="结束时间 (自动计算)"
+                                  name={[name, 'endDate']}
+                                >
+                                  <DatePicker
+                                    style={{ width: '100%' }}
+                                    placeholder="自动计算"
+                                    format="YYYY-MM-DD"
+                                    disabled
+                                    value={calculatedEndDate}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={4}>
+                                <Space direction="vertical" align="center" style={{ width: '100%' }}>
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    onClick={() => {
+                                      if (dates) {
+                                        // 自动填充会同时设置开始和结束日期
+                                        setFieldValue(['businessTerms', 'freeRentPeriods', name, 'startDate'], dates.startDate);
+                                        setFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate'], dates.endDate);
+                                      }
+                                    }}
+                                    disabled={!dates}
+                                    style={{ fontSize: '12px', padding: '0' }}
+                                  >
+                                    自动填充
+                                  </Button>
+                                  <Button
+                                    type="text"
+                                    danger
+                                    size="small"
+                                    icon={<MinusCircleOutlined />}
+                                    onClick={() => remove(name)}
+                                  />
+                                </Space>
+                              </Col>
+                            </Row>
                           </div>
-                        </Col>
-                      </Row>
-                    </div>
+                        );
+                      }}
+                    </Form.Item>
                   ))}
                   <Form.Item>
-                    <Button 
-                      type="dashed" 
-                      onClick={() => add({ year: fields.length + 1, days: 0 })} 
-                      block 
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ year: fields.length + 1 })}
+                      block
                       icon={<PlusOutlined />}
                     >
                       添加免租期
@@ -1208,30 +1151,33 @@ const PotentialProjects: React.FC = () => {
     // 处理不同阶段的日期字段
     let formValues: any = { ...record };
     
-    if (record.projectPhase === '市场调研' && record.marketResearch?.buildDate) {
+    // 处理市场调研阶段的日期字段
+    if (record.projectPhase === '市场调研' && record.marketResearch) {
       formValues.marketResearch = {
         ...record.marketResearch,
-        buildDate: dayjs(record.marketResearch.buildDate)
+        buildDate: record.marketResearch.buildDate ? dayjs(record.marketResearch.buildDate) : null
       };
     }
     
+    // 处理商务条款阶段的日期字段
     if (record.projectPhase === '商务条款' && record.businessTerms) {
-      formValues.businessTerms = {
-        ...record.businessTerms,
-        startDate: record.businessTerms.startDate ? dayjs(record.businessTerms.startDate) : null,
-        firstPaymentDate: record.businessTerms.firstPaymentDate ? dayjs(record.businessTerms.firstPaymentDate) : null,
-        depositPaymentDate: record.businessTerms.depositPaymentDate ? dayjs(record.businessTerms.depositPaymentDate) : null,
-        rentIncreases: record.businessTerms.rentIncreases?.map(increase => ({
-          ...increase,
-          increaseTime: dayjs(increase.increaseTime)
-        })) || [],
-        freeRentPeriods: record.businessTerms.freeRentPeriods?.map(period => ({
-          ...period,
-          startDate: period.startDate ? dayjs(period.startDate) : null,
-          endDate: period.endDate ? dayjs(period.endDate) : null
-        })) || []
-      };
-    }
+        formValues.businessTerms = {
+          ...record.businessTerms,
+          startDate: record.businessTerms.startDate ? dayjs(record.businessTerms.startDate) : null,
+          firstPaymentDate: record.businessTerms.firstPaymentDate ? dayjs(record.businessTerms.firstPaymentDate) : null,
+          depositPaymentDate: record.businessTerms.depositPaymentDate ? dayjs(record.businessTerms.depositPaymentDate) : null,
+          rentIncreases: record.businessTerms.rentIncreases?.map(increase => ({
+            ...increase,
+            increaseTime: dayjs(increase.increaseTime)
+          })) || [],
+          freeRentPeriods: record.businessTerms.freeRentPeriods?.map(period => ({
+            ...period,
+            startDate: period.startDate ? dayjs(period.startDate) : null,
+            // 确保 endDate 也被转换为 dayjs 对象
+            endDate: period.endDate ? dayjs(period.endDate) : null
+          })) || []
+        };
+      }
     
     if (record.nextFollowUpTime) {
       formValues.nextFollowUpTime = dayjs(record.nextFollowUpTime);
@@ -1313,12 +1259,14 @@ const PotentialProjects: React.FC = () => {
         
         // 处理免租期日期
         if (processedValues.businessTerms.freeRentPeriods) {
-          processedValues.businessTerms.freeRentPeriods = processedValues.businessTerms.freeRentPeriods.map((period: any) => ({
-            ...period,
-            startDate: period.startDate ? period.startDate.format('YYYY-MM-DD') : null,
-            endDate: period.endDate ? period.endDate.format('YYYY-MM-DD') : null
-          }));
-        }
+            processedValues.businessTerms.freeRentPeriods = processedValues.businessTerms.freeRentPeriods.map((period: any) => ({
+              ...period,
+              startDate: period.startDate ? period.startDate.format('YYYY-MM-DD') : null,
+              // 确保 endDate 也被格式化
+              endDate: period.endDate ? (period.endDate.format ? period.endDate.format('YYYY-MM-DD') : period.endDate) : null
+            }));
+          }
+  
       }
       
       if (processedValues.nextFollowUpTime) {
@@ -1468,33 +1416,38 @@ const PotentialProjects: React.FC = () => {
   };
 
   // 计算免租期开始和结束日期
-  const calculateFreeRentDates = (startDate: string, year: number, days: number, customStartDate?: string) => {
-    if (!startDate) return { calculatedStartDate: '', calculatedEndDate: '' };
-    
-    const baseStartDate = dayjs(startDate);
-    
-    // 计算该年份的免租期开始日期
-    let freeRentStartDate;
-    if (customStartDate) {
-      // 如果用户自定义了开始日期，使用自定义日期
-      freeRentStartDate = dayjs(customStartDate);
-    } else {
-      // 否则使用计算得出的日期
-      if (year === 1) {
-        // 第一年从起租日开始
-        freeRentStartDate = baseStartDate;
-      } else {
-        // 第N年从起租日的第N-1个周年开始
-        freeRentStartDate = baseStartDate.add(year - 1, 'year');
-      }
+  const calculateFreeRentDates = (
+    contractStartDate: any, 
+    year: number, 
+    days: number, 
+    customStartDate?: any
+  ): { startDate: dayjs.Dayjs, endDate: dayjs.Dayjs } | null => {
+    if (!contractStartDate || !year || days === undefined || days === null) {
+      return null;
     }
-    
-    // 结束日期 = 开始日期 + 免租天数
-    const freeRentEndDate = freeRentStartDate.add(days, 'day');
-    
+  
+    const baseStartDate = dayjs(contractStartDate);
+    if (!baseStartDate.isValid()) return null;
+  
+    // 1. 确定有效的开始日期
+    let effectiveStartDate: dayjs.Dayjs;
+    if (customStartDate && dayjs(customStartDate).isValid()) {
+      // 如果用户提供了有效的自定义开始日期，则使用它
+      effectiveStartDate = dayjs(customStartDate);
+    } else {
+      // 否则，根据年份计算默认开始日期
+      // 第1年从合同起租日开始，第N年从合同起租日的 N-1 周年纪念日开始
+      effectiveStartDate = baseStartDate.add(year - 1, 'year');
+    }
+  
+    // 2. 计算结束日期
+    // 结束日期 = 有效开始日期 + 免租天数 - 1 天 (例如，1号开始免租10天，应该是10号结束)
+    const effectiveDays = days > 0 ? days - 1 : 0;
+    const endDate = effectiveStartDate.add(effectiveDays, 'day');
+  
     return {
-      calculatedStartDate: freeRentStartDate.format('YYYY-MM-DD'),
-      calculatedEndDate: freeRentEndDate.format('YYYY-MM-DD')
+      startDate: effectiveStartDate,
+      endDate: endDate
     };
   };
 
@@ -1528,7 +1481,7 @@ const PotentialProjects: React.FC = () => {
         firstYearFreeRent.days, 
         firstYearFreeRent.startDate
       );
-      rentPaymentStartDate = dayjs(freeRentDates.calculatedEndDate);
+      rentPaymentStartDate = dayjs(freeRentDates?.endDate);
     }
 
     // 计算物业费首期款开始日期（物业费通常没有免租期）
