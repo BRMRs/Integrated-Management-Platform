@@ -86,6 +86,8 @@ const mockData: DetailedPotentialProject[] = [
       firstPaymentDate: '2024-05-15',
       depositPaymentDate: '2024-05-15',
       propertyFeePrice: 15,
+      propertyFeeCalculationMethod: 'independent',
+      propertyFeeFreeRentPeriods: [],
       intentionLevel: 85
     },
     followUpRecords: [
@@ -158,6 +160,10 @@ const mockData: DetailedPotentialProject[] = [
       firstPaymentDate: '2024-02-15',
       depositPaymentDate: '2024-02-15',
       propertyFeePrice: 18,
+      propertyFeeCalculationMethod: 'sync_with_rent',
+      propertyFeeFreeRentPeriods: [
+        { year: 1, days: 30, startDate: '2024-03-01', endDate: '2024-03-30' }
+      ],
       intentionLevel: 100
     },
     contractSigned: {
@@ -667,8 +673,8 @@ const PotentialProjects: React.FC = () => {
               )}
             </Form.List>
 
-            {/* 免租期 */}
-            <Divider>免租期</Divider>
+            {/* 租金免租期 */}
+            <Divider>租金免租期</Divider>
             <Form.List name={['businessTerms', 'freeRentPeriods']}>
               {(fields, { add, remove }) => (
                 <>
@@ -843,7 +849,191 @@ const PotentialProjects: React.FC = () => {
                       block
                       icon={<PlusOutlined />}
                     >
-                      添加免租期
+                      添加租金免租期
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+
+            {/* 物业费免租期 */}
+            <Divider>物业费免租期</Divider>
+            <Form.List name={['businessTerms', 'propertyFeeFreeRentPeriods']}>
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    // 使用 shouldUpdate 包裹整行，以便在依赖项变化时重新渲染
+                    <Form.Item
+                      key={key}
+                      shouldUpdate={(prevValues, curValues) => {
+                        const prev = prevValues.businessTerms?.propertyFeeFreeRentPeriods?.[name];
+                        const cur = curValues.businessTerms?.propertyFeeFreeRentPeriods?.[name];
+                        return (
+                          prevValues.businessTerms?.startDate !== curValues.businessTerms?.startDate ||
+                          prev?.year !== cur?.year ||
+                          prev?.days !== cur?.days ||
+                          prev?.startDate !== cur?.startDate
+                        );
+                      }}
+                      noStyle
+                    >
+                      {({ getFieldValue, setFieldValue }) => {
+                        const contractStartDate = getFieldValue(['businessTerms', 'startDate']);
+                        const propertyFreeRentPeriod = getFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name]) || {};
+                        const { year, days, startDate: customStartDate } = propertyFreeRentPeriod;
+
+                        // 调用帮助函数计算日期
+                        const dates = calculateFreeRentDates(contractStartDate, year, days, customStartDate);
+                        const suggestedStartDate = dates ? dates.startDate : null;
+                        const calculatedEndDate = dates ? dates.endDate : null;
+
+                        // 自动更新结束日期到表单中
+                        if (calculatedEndDate) {
+                          const currentEndDate = getFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'endDate']);
+                          if (!currentEndDate || !currentEndDate.isSame(calculatedEndDate, 'day')) {
+                            setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'endDate'], calculatedEndDate);
+                          }
+                        }
+
+                        return (
+                          <div style={{
+                            border: '1px solid #e6f7ff',
+                            borderRadius: '6px',
+                            padding: '16px',
+                            marginBottom: '12px',
+                            backgroundColor: '#f0f9ff'
+                          }}>
+                            <Row gutter={16} align="bottom">
+                              <Col span={4}>
+                                <Form.Item
+                                  {...restField}
+                                  label="第几年"
+                                  name={[name, 'year']}
+                                  rules={[{ required: true, message: '请输入年份' }]}
+                                >
+                                  <InputNumber 
+                                    placeholder="年份" 
+                                    style={{ width: '100%' }} 
+                                    min={1}
+                                    onChange={(value) => {
+                                      // 当年份改变时，自动设置建议的开始日期
+                                      if (value && contractStartDate) {
+                                        const newDates = calculateFreeRentDates(contractStartDate, value, days || 0, null);
+                                        if (newDates) {
+                                          setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'startDate'], newDates.startDate);
+                                          if (days) {
+                                            setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'endDate'], newDates.endDate);
+                                          }
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={4}>
+                                <Form.Item
+                                  {...restField}
+                                  label="免租天数"
+                                  name={[name, 'days']}
+                                  rules={[{ required: true, message: '请输入天数' }]}
+                                >
+                                  <InputNumber 
+                                    placeholder="天数" 
+                                    style={{ width: '100%' }} 
+                                    addonAfter="天" 
+                                    min={0}
+                                    onChange={(value) => {
+                                      // 当天数改变时，自动更新结束日期
+                                      if (value && year && contractStartDate) {
+                                        const currentStartDate = getFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'startDate']);
+                                        const newDates = calculateFreeRentDates(contractStartDate, year, value, currentStartDate);
+                                        if (newDates) {
+                                          setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'endDate'], newDates.endDate);
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={6}>
+                                <Form.Item
+                                  {...restField}
+                                  label="开始时间"
+                                  name={[name, 'startDate']}
+                                  rules={[{ required: true, message: '请选择开始时间' }]}
+                                >
+                                  <DatePicker
+                                    style={{ width: '100%' }}
+                                    placeholder={suggestedStartDate ? suggestedStartDate.format('YYYY-MM-DD') : '请先填起租日和免租天数'}
+                                    format="YYYY-MM-DD"
+                                    onChange={(date) => {
+                                      // 当开始日期变化时，自动更新结束日期
+                                      if (date && days && year && contractStartDate) {
+                                        const newDates = calculateFreeRentDates(contractStartDate, year, days, date);
+                                        if (newDates) {
+                                          setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'endDate'], newDates.endDate);
+                                        }
+                                      }
+                                    }}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={6}>
+                                <Form.Item
+                                  {...restField}
+                                  label="结束时间 (自动计算)"
+                                  name={[name, 'endDate']}
+                                >
+                                  <DatePicker
+                                    style={{ width: '100%' }}
+                                    placeholder="自动计算"
+                                    format="YYYY-MM-DD"
+                                    disabled
+                                    value={calculatedEndDate}
+                                  />
+                                </Form.Item>
+                              </Col>
+                              <Col span={4}>
+                                <Space direction="vertical" align="center" style={{ width: '100%' }}>
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    onClick={() => {
+                                      if (dates) {
+                                        // 自动填充会同时设置开始和结束日期
+                                        setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'startDate'], dates.startDate);
+                                        setFieldValue(['businessTerms', 'propertyFeeFreeRentPeriods', name, 'endDate'], dates.endDate);
+                                      }
+                                    }}
+                                    disabled={!dates}
+                                    style={{ fontSize: '12px', padding: '0' }}
+                                  >
+                                    自动填充
+                                  </Button>
+                                  <Button
+                                    type="text"
+                                    danger
+                                    size="small"
+                                    icon={<MinusCircleOutlined />}
+                                    onClick={() => remove(name)}
+                                  />
+                                </Space>
+                              </Col>
+                            </Row>
+                          </div>
+                        );
+                      }}
+                    </Form.Item>
+                  ))}
+                  <Form.Item>
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ year: fields.length + 1 })}
+                      block
+                      icon={<PlusOutlined />}
+                      style={{ borderColor: '#1890ff', color: '#1890ff' }}
+                    >
+                      添加物业费免租期
                     </Button>
                   </Form.Item>
                 </>
@@ -851,7 +1041,7 @@ const PotentialProjects: React.FC = () => {
             </Form.List>
 
             <Row gutter={16}>
-              <Col span={12}>
+              <Col span={8}>
                 <Form.Item
                   label="租赁保证金包含"
                   name={['businessTerms', 'depositItems']}
@@ -864,7 +1054,7 @@ const PotentialProjects: React.FC = () => {
                   </Select>
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col span={8}>
                 <Form.Item
                   label="物业费单价"
                   name={['businessTerms', 'propertyFeePrice']}
@@ -879,7 +1069,39 @@ const PotentialProjects: React.FC = () => {
                   />
                 </Form.Item>
               </Col>
+              <Col span={8}>
+                <Form.Item
+                  label="物业费计费方式"
+                  name={['businessTerms', 'propertyFeeCalculationMethod']}
+                  initialValue="independent"
+                  rules={[{ required: true, message: '请选择物业费计费方式' }]}
+                >
+                  <Select placeholder="请选择计费方式">
+                    <Option value="independent">独立计费周期</Option>
+                    <Option value="sync_with_rent">与租金同步</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
             </Row>
+            
+            {/* 物业费计费方式说明 */}
+            <Form.Item dependencies={[['businessTerms', 'propertyFeeCalculationMethod']]}>
+              {({ getFieldValue }) => {
+                const calculationMethod = getFieldValue(['businessTerms', 'propertyFeeCalculationMethod']);
+                return (
+                  <Alert
+                    message={
+                      calculationMethod === 'sync_with_rent' 
+                        ? '物业费与租金同步：物业费的计费周期与租金保持一致。如果物业费有免租期，按物业费免租期计算；如果没有免租期，从起租日开始，但结束日期与租金首期结束时间一致。'
+                        : '独立计费周期：物业费按照合同起租日期独立计算。如果物业费有免租期，从免租期结束次日开始计算；如果没有免租期，从合同起租日开始。'
+                    }
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+                );
+              }}
+            </Form.Item>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
@@ -920,64 +1142,136 @@ const PotentialProjects: React.FC = () => {
               ['businessTerms', 'paymentMethod'],
               ['businessTerms', 'depositItems'],
               ['businessTerms', 'startDate'],
-              ['businessTerms', 'freeRentPeriods']
+              ['businessTerms', 'leaseTerm'],
+              ['businessTerms', 'freeRentPeriods'],
+              ['businessTerms', 'propertyFeeFreeRentPeriods'],
+              ['businessTerms', 'rentIncreases'],
+              ['businessTerms', 'propertyFeeCalculationMethod']
             ]}>
               {({ getFieldsValue }) => {
                 const formData = { businessTerms: getFieldsValue().businessTerms };
                 const depositResult = calculateDepositAmount(formData);
                 const paymentResult = calculateFirstPayment(formData);
+                const totalAmountResult = calculateTotalContractAmount(formData);
 
                 return (
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Card size="small" title="租赁保证金计算" style={{ backgroundColor: '#f9f9f9' }}>
-                        <table style={{ width: '100%', fontSize: '12px' }}>
-                          <tbody>
-                            <tr>
-                              <td>租金保证金：</td>
-                              <td style={{ textAlign: 'right' }}>¥{depositResult.rentDeposit.toLocaleString()}</td>
-                            </tr>
-                            <tr>
-                              <td>物业费保证金：</td>
-                              <td style={{ textAlign: 'right' }}>¥{depositResult.propertyDeposit.toLocaleString()}</td>
-                            </tr>
-                            <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
-                              <td>保证金总计：</td>
-                              <td style={{ textAlign: 'right' }}>¥{depositResult.totalDeposit.toLocaleString()}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </Card>
-                    </Col>
-                    <Col span={12}>
-                      <Card size="small" title="首期款计算" style={{ backgroundColor: '#f9f9f9' }}>
-                        <table style={{ width: '100%', fontSize: '12px' }}>
-                          <tbody>
-                            <tr>
-                              <td>首期租金：</td>
-                              <td style={{ textAlign: 'right' }}>¥{paymentResult.rentPayment.toLocaleString()}</td>
-                            </tr>
-                            <tr>
-                              <td>首期物业费：</td>
-                              <td style={{ textAlign: 'right' }}>¥{paymentResult.propertyPayment.toLocaleString()}</td>
-                            </tr>
-                            <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
-                              <td>首期款总计：</td>
-                              <td style={{ textAlign: 'right' }}>¥{paymentResult.totalPayment.toLocaleString()}</td>
-                            </tr>
-                            {paymentResult.rentPaymentStartDate && (
+                  <div>
+                    {/* 第一行：保证金和首期款 */}
+                    <Row gutter={16} style={{ marginBottom: 16 }}>
+                      <Col span={12}>
+                        <Card size="small" title="租赁保证金计算" style={{ backgroundColor: '#f9f9f9' }}>
+                          <table style={{ width: '100%', fontSize: '12px' }}>
+                            <tbody>
                               <tr>
-                                <td colSpan={2} style={{ fontSize: '11px', color: '#666', paddingTop: '8px' }}>
-                                  租金：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}<br/>
-                                  物业：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}
-                                </td>
+                                <td>租金保证金：</td>
+                                <td style={{ textAlign: 'right' }}>¥{depositResult.rentDeposit.toLocaleString()}</td>
                               </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </Card>
-                    </Col>
-                  </Row>
+                              <tr>
+                                <td>物业费保证金：</td>
+                                <td style={{ textAlign: 'right' }}>¥{depositResult.propertyDeposit.toLocaleString()}</td>
+                              </tr>
+                              <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
+                                <td>保证金总计：</td>
+                                <td style={{ textAlign: 'right' }}>¥{depositResult.totalDeposit.toLocaleString()}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </Card>
+                      </Col>
+                      <Col span={12}>
+                        <Card size="small" title="首期款计算" style={{ backgroundColor: '#f9f9f9' }}>
+                          <table style={{ width: '100%', fontSize: '12px' }}>
+                            <tbody>
+                              <tr>
+                                <td>首期租金：</td>
+                                <td style={{ textAlign: 'right' }}>¥{paymentResult.rentPayment.toLocaleString()}</td>
+                              </tr>
+                              <tr>
+                                <td>首期物业费：</td>
+                                <td style={{ textAlign: 'right' }}>¥{paymentResult.propertyPayment.toLocaleString()}</td>
+                              </tr>
+                              <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
+                                <td>首期款总计：</td>
+                                <td style={{ textAlign: 'right' }}>¥{paymentResult.totalPayment.toLocaleString()}</td>
+                              </tr>
+                              {paymentResult.rentPaymentStartDate && (
+                                <tr>
+                                  <td colSpan={2} style={{ fontSize: '11px', color: '#666', paddingTop: '8px' }}>
+                                    租金：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}<br/>
+                                    物业：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </Card>
+                      </Col>
+                    </Row>
+
+                    {/* 第二行：合同总金额 */}
+                    {totalAmountResult.grandTotal > 0 && (
+                      <Row gutter={16}>
+                        <Col span={24}>
+                          <Card 
+                            size="small" 
+                            title="合同总金额计算" 
+                            style={{ backgroundColor: '#fff7e6', border: '2px solid #ffa940' }}
+                          >
+                            <Row gutter={16}>
+                              <Col span={12}>
+                                <div style={{ fontSize: '14px', marginBottom: '16px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <span style={{ fontWeight: 'bold' }}>签约租金总额：</span>
+                                    <span style={{ color: '#1890ff', fontSize: '16px', fontWeight: 'bold' }}>
+                                      ¥{totalAmountResult.totalRent.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <span style={{ fontWeight: 'bold' }}>物业费总额：</span>
+                                    <span style={{ color: '#52c41a', fontSize: '16px', fontWeight: 'bold' }}>
+                                      ¥{totalAmountResult.totalPropertyFee.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div style={{ 
+                                    display: 'flex', 
+                                    justifyContent: 'space-between', 
+                                    borderTop: '2px solid #ffa940', 
+                                    paddingTop: '8px', 
+                                    fontSize: '18px', 
+                                    fontWeight: 'bold' 
+                                  }}>
+                                    <span>合同总金额：</span>
+                                    <span style={{ color: '#f5222d' }}>
+                                      ¥{totalAmountResult.grandTotal.toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              </Col>
+                              <Col span={12}>
+                                <div style={{ fontSize: '12px', color: '#666' }}>
+                                  <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>各年度租金明细：</div>
+                                  <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                                    {totalAmountResult.details.map((detail, index) => (
+                                      <div key={index} style={{ marginBottom: '4px', padding: '4px', backgroundColor: '#f9f9f9', borderRadius: '4px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                          <span>第{detail.year}年：</span>
+                                          <span>¥{detail.yearRent.toLocaleString()}</span>
+                                        </div>
+                                        <div style={{ fontSize: '10px', color: '#999' }}>
+                                          单价：¥{detail.rentPrice}/㎡/天 | 收费天数：{detail.chargingDays}天
+                                          {detail.freeRentDays > 0 && ` (免租${detail.freeRentDays}天)`}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </Col>
+                            </Row>
+                          </Card>
+                        </Col>
+                      </Row>
+                    )}
+                  </div>
                 );
               }}
             </Form.Item>
@@ -1315,7 +1609,8 @@ const PotentialProjects: React.FC = () => {
         intentionLevel: 20
       },
       businessTerms: {
-        freeRentPeriods: [] // 初始化空的免租期数组
+        freeRentPeriods: [], // 初始化空的租金免租期数组
+        propertyFeeFreeRentPeriods: [] // 初始化空的物业费免租期数组
       }
     });
     setEditModalVisible(true);
@@ -1345,6 +1640,7 @@ const PotentialProjects: React.FC = () => {
           startDate: record.businessTerms.startDate ? dayjs(record.businessTerms.startDate) : null,
           firstPaymentDate: record.businessTerms.firstPaymentDate ? dayjs(record.businessTerms.firstPaymentDate) : null,
           depositPaymentDate: record.businessTerms.depositPaymentDate ? dayjs(record.businessTerms.depositPaymentDate) : null,
+          propertyFeeCalculationMethod: record.businessTerms.propertyFeeCalculationMethod || 'independent', // 设置默认值
           rentIncreases: record.businessTerms.rentIncreases?.map(increase => ({
             ...increase,
             increaseTime: dayjs(increase.increaseTime)
@@ -1353,6 +1649,11 @@ const PotentialProjects: React.FC = () => {
             ...period,
             startDate: period.startDate ? dayjs(period.startDate) : null,
             // 确保 endDate 也被转换为 dayjs 对象
+            endDate: period.endDate ? dayjs(period.endDate) : null
+          })) || [],
+          propertyFeeFreeRentPeriods: record.businessTerms.propertyFeeFreeRentPeriods?.map(period => ({
+            ...period,
+            startDate: period.startDate ? dayjs(period.startDate) : null,
             endDate: period.endDate ? dayjs(period.endDate) : null
           })) || []
         };
@@ -1436,12 +1737,21 @@ const PotentialProjects: React.FC = () => {
           }));
         }
         
-        // 处理免租期日期
+        // 处理租金免租期日期
         if (processedValues.businessTerms.freeRentPeriods) {
             processedValues.businessTerms.freeRentPeriods = processedValues.businessTerms.freeRentPeriods.map((period: any) => ({
               ...period,
               startDate: period.startDate ? period.startDate.format('YYYY-MM-DD') : null,
               // 确保 endDate 也被格式化
+              endDate: period.endDate ? (period.endDate.format ? period.endDate.format('YYYY-MM-DD') : period.endDate) : null
+            }));
+          }
+        
+        // 处理物业费免租期日期
+        if (processedValues.businessTerms.propertyFeeFreeRentPeriods) {
+            processedValues.businessTerms.propertyFeeFreeRentPeriods = processedValues.businessTerms.propertyFeeFreeRentPeriods.map((period: any) => ({
+              ...period,
+              startDate: period.startDate ? period.startDate.format('YYYY-MM-DD') : null,
               endDate: period.endDate ? (period.endDate.format ? period.endDate.format('YYYY-MM-DD') : period.endDate) : null
             }));
           }
@@ -1640,7 +1950,9 @@ const PotentialProjects: React.FC = () => {
       propertyFeePrice, 
       paymentMethod, 
       startDate,
-      freeRentPeriods 
+      freeRentPeriods,
+      propertyFeeFreeRentPeriods,
+      propertyFeeCalculationMethod // 物业费计费方式：'sync_with_rent' | 'independent'
     } = formData.businessTerms;
     
     const { payment } = parsePaymentMethod(paymentMethod || '');
@@ -1653,26 +1965,65 @@ const PotentialProjects: React.FC = () => {
     let rentPaymentStartDate = startDateObj;
     const firstYearFreeRent = freeRentPeriods?.find((period: any) => period.year === 1);
     if (firstYearFreeRent && firstYearFreeRent.days > 0) {
-      // 使用免租期的实际结束日期作为租金开始计算日期
+      // 使用免租期结束的次日作为租金开始计算日期
       const freeRentDates = calculateFreeRentDates(
         startDate, 
         1, 
         firstYearFreeRent.days, 
         firstYearFreeRent.startDate
       );
-      rentPaymentStartDate = dayjs(freeRentDates?.endDate);
+      rentPaymentStartDate = dayjs(freeRentDates?.endDate).add(1, 'day');
     }
 
-    // 计算物业费首期款开始日期（物业费通常没有免租期）
-    const propertyPaymentStartDate = startDateObj;
+    // 计算物业费首期款开始日期和结束日期
+    let propertyPaymentStartDate = startDateObj;
+    let propertyPaymentEndDate = startDateObj.add(payment, 'month');
+    let propertyPaymentDays = 0;
+
+    if (propertyFeeCalculationMethod === 'sync_with_rent') {
+      // 物业费与租金同步计费
+      // 检查物业费是否有免租期
+      const firstYearPropertyFreeRent = propertyFeeFreeRentPeriods?.find((period: any) => period.year === 1);
+      if (firstYearPropertyFreeRent && firstYearPropertyFreeRent.days > 0) {
+        // 物业费有免租期，按照物业费免租期计算
+        const propertyFreeRentDates = calculateFreeRentDates(
+          startDate, 
+          1, 
+          firstYearPropertyFreeRent.days, 
+          firstYearPropertyFreeRent.startDate
+        );
+        propertyPaymentStartDate = dayjs(propertyFreeRentDates?.endDate).add(1, 'day');
+      } else {
+        // 物业费没有免租期，从起租日开始，但结束日期与租金首期结束时间一致
+        propertyPaymentStartDate = startDateObj;
+      }
+      propertyPaymentEndDate = rentPaymentStartDate.add(payment, 'month');
+      propertyPaymentDays = propertyPaymentEndDate.diff(propertyPaymentStartDate, 'day');
+    } else {
+      // 物业费独立计费周期（从合同开始日期计算，考虑物业费免租期）
+      const firstYearPropertyFreeRent = propertyFeeFreeRentPeriods?.find((period: any) => period.year === 1);
+      if (firstYearPropertyFreeRent && firstYearPropertyFreeRent.days > 0) {
+        // 物业费有免租期
+        const propertyFreeRentDates = calculateFreeRentDates(
+          startDate, 
+          1, 
+          firstYearPropertyFreeRent.days, 
+          firstYearPropertyFreeRent.startDate
+        );
+        propertyPaymentStartDate = dayjs(propertyFreeRentDates?.endDate).add(1, 'day');
+      } else {
+        // 物业费没有免租期，从合同开始日期计算
+        propertyPaymentStartDate = startDateObj;
+      }
+      propertyPaymentEndDate = propertyPaymentStartDate.add(payment, 'month');
+      propertyPaymentDays = propertyPaymentEndDate.diff(propertyPaymentStartDate, 'day');
+    }
 
     // 首期款结束日期 = 开始日期 + 付几个月
     const rentPaymentEndDate = rentPaymentStartDate.add(payment, 'month');
-    const propertyPaymentEndDate = propertyPaymentStartDate.add(payment, 'month');
 
     // 计算天数
     const rentPaymentDays = rentPaymentEndDate.diff(rentPaymentStartDate, 'day');
-    const propertyPaymentDays = propertyPaymentEndDate.diff(propertyPaymentStartDate, 'day');
 
     // 计算金额
     const rentPayment = leaseArea && leasePrice ? leasePrice * leaseArea * rentPaymentDays : 0;
@@ -1687,6 +2038,91 @@ const PotentialProjects: React.FC = () => {
       rentPaymentEndDate: rentPaymentEndDate.format('YYYY-MM-DD'),
       propertyPaymentStartDate: propertyPaymentStartDate.format('YYYY-MM-DD'),
       propertyPaymentEndDate: propertyPaymentEndDate.format('YYYY-MM-DD')
+    };
+  };
+
+  // 计算合同总金额
+  const calculateTotalContractAmount = (formData: any) => {
+    if (!formData.businessTerms) return { totalRent: 0, totalPropertyFee: 0, grandTotal: 0, details: [] };
+
+    const { 
+      leaseArea, 
+      leasePrice, 
+      propertyFeePrice, 
+      leaseTerm,
+      startDate,
+      freeRentPeriods,
+      rentIncreases
+    } = formData.businessTerms;
+
+    if (!leaseArea || !leasePrice || !propertyFeePrice || !leaseTerm || !startDate) {
+      return { totalRent: 0, totalPropertyFee: 0, grandTotal: 0, details: [] };
+    }
+
+    const startDateObj = dayjs(startDate);
+    const details = [];
+    let totalRent = 0;
+
+    // 计算每一年的租金
+    for (let year = 1; year <= leaseTerm; year++) {
+      const yearStartDate = startDateObj.add(year - 1, 'year');
+      const yearEndDate = startDateObj.add(year, 'year').subtract(1, 'day');
+      
+      // 计算这一年的天数
+      let yearDays = yearEndDate.diff(yearStartDate, 'day') + 1;
+      
+      // 如果是最后一年，需要精确计算到合同结束日期
+      if (year === leaseTerm) {
+        const contractEndDate = startDateObj.add(leaseTerm, 'year').subtract(1, 'day');
+        yearDays = contractEndDate.diff(yearStartDate, 'day') + 1;
+      }
+
+      // 获取这一年的免租期
+      const freeRentPeriod = freeRentPeriods?.find((period: any) => period.year === year);
+      const freeRentDays = freeRentPeriod?.days || 0;
+      
+      // 计算实际收费天数
+      const chargingDays = Math.max(0, yearDays - freeRentDays);
+
+      // 确定这一年的租金单价（考虑递增）
+      let currentRentPrice = leasePrice;
+      if (rentIncreases && rentIncreases.length > 0) {
+        // 找到适用于当前年份的最新租金递增
+        const applicableIncrease = rentIncreases
+          .filter((increase: any) => dayjs(increase.increaseTime).isBefore(yearEndDate) || dayjs(increase.increaseTime).isSame(yearEndDate))
+          .sort((a: any, b: any) => dayjs(b.increaseTime).unix() - dayjs(a.increaseTime).unix())[0];
+        
+        if (applicableIncrease) {
+          currentRentPrice = applicableIncrease.increasedPrice;
+        }
+      }
+
+      // 计算这一年的租金
+      const yearRent = currentRentPrice * leaseArea * chargingDays;
+      totalRent += yearRent;
+
+      details.push({
+        year,
+        yearDays,
+        freeRentDays,
+        chargingDays,
+        rentPrice: currentRentPrice,
+        yearRent: Math.round(yearRent),
+        dateRange: `${yearStartDate.format('YYYY-MM-DD')} ~ ${year === leaseTerm ? startDateObj.add(leaseTerm, 'year').subtract(1, 'day').format('YYYY-MM-DD') : yearEndDate.format('YYYY-MM-DD')}`
+      });
+    }
+
+    // 计算物业费总额（物业费通常没有免租期，按月计算）
+    const totalPropertyFee = propertyFeePrice * leaseArea * leaseTerm * 12;
+    
+    // 计算总金额
+    const grandTotal = totalRent + totalPropertyFee;
+
+    return {
+      totalRent: Math.round(totalRent),
+      totalPropertyFee: Math.round(totalPropertyFee),
+      grandTotal: Math.round(grandTotal),
+      details
     };
   };
 
@@ -2277,6 +2713,12 @@ const PotentialProjects: React.FC = () => {
                           <Text>¥{currentRecord.businessTerms.propertyFeePrice}/㎡/月</Text>
                         </Col>
                         <Col span={12}>
+                          <Text strong>物业费计费方式：</Text>
+                          <Text>
+                            {currentRecord.businessTerms.propertyFeeCalculationMethod === 'sync_with_rent' ? '与租金同步' : '独立计费周期'}
+                          </Text>
+                        </Col>
+                        <Col span={12}>
                           <Text strong>合作意向：</Text>
                           <Progress
                             percent={currentRecord.businessTerms.intentionLevel}
@@ -2302,10 +2744,26 @@ const PotentialProjects: React.FC = () => {
                       
                       {currentRecord.businessTerms.freeRentPeriods && currentRecord.businessTerms.freeRentPeriods.length > 0 && (
                         <div style={{ marginTop: 16 }}>
-                          <Text strong>免租期：</Text>
+                          <Text strong>租金免租期：</Text>
                           <List
                             size="small"
                             dataSource={currentRecord.businessTerms.freeRentPeriods}
+                            renderItem={(item) => (
+                              <List.Item>
+                                第{item.year}年: {item.days}天
+                                {item.startDate && ` (${item.startDate} ~ ${item.endDate})`}
+                              </List.Item>
+                            )}
+                          />
+                        </div>
+                      )}
+
+                      {currentRecord.businessTerms.propertyFeeFreeRentPeriods && currentRecord.businessTerms.propertyFeeFreeRentPeriods.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <Text strong>物业费免租期：</Text>
+                          <List
+                            size="small"
+                            dataSource={currentRecord.businessTerms.propertyFeeFreeRentPeriods}
                             renderItem={(item) => (
                               <List.Item>
                                 第{item.year}年: {item.days}天
@@ -2322,52 +2780,120 @@ const PotentialProjects: React.FC = () => {
                         const formData = { businessTerms: currentRecord.businessTerms };
                         const depositResult = calculateDepositAmount(formData);
                         const paymentResult = calculateFirstPayment(formData);
+                        const totalAmountResult = calculateTotalContractAmount(formData);
 
                         return (
-                          <Row gutter={16}>
-                            <Col span={12}>
-                              <Card size="small" title="租赁保证金" style={{ backgroundColor: '#f0f9ff' }}>
-                                <div style={{ fontSize: '12px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span>租金保证金：</span>
-                                    <span>¥{depositResult.rentDeposit.toLocaleString()}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span>物业费保证金：</span>
-                                    <span>¥{depositResult.propertyDeposit.toLocaleString()}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
-                                    <span>保证金总计：</span>
-                                    <span style={{ color: '#1890ff' }}>¥{depositResult.totalDeposit.toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              </Card>
-                            </Col>
-                            <Col span={12}>
-                              <Card size="small" title="首期款" style={{ backgroundColor: '#f6ffed' }}>
-                                <div style={{ fontSize: '12px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span>首期租金：</span>
-                                    <span>¥{paymentResult.rentPayment.toLocaleString()}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span>首期物业费：</span>
-                                    <span>¥{paymentResult.propertyPayment.toLocaleString()}</span>
-                                  </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
-                                    <span>首期款总计：</span>
-                                    <span style={{ color: '#52c41a' }}>¥{paymentResult.totalPayment.toLocaleString()}</span>
-                                  </div>
-                                  {paymentResult.rentPaymentStartDate && (
-                                    <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
-                                      <div>租金期间：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}</div>
-                                      <div>物业期间：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}</div>
+                          <div>
+                            {/* 第一行：保证金和首期款 */}
+                            <Row gutter={16} style={{ marginBottom: 16 }}>
+                              <Col span={12}>
+                                <Card size="small" title="租赁保证金" style={{ backgroundColor: '#f0f9ff' }}>
+                                  <div style={{ fontSize: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                      <span>租金保证金：</span>
+                                      <span>¥{depositResult.rentDeposit.toLocaleString()}</span>
                                     </div>
-                                  )}
-                                </div>
-                              </Card>
-                            </Col>
-                          </Row>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                      <span>物业费保证金：</span>
+                                      <span>¥{depositResult.propertyDeposit.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
+                                      <span>保证金总计：</span>
+                                      <span style={{ color: '#1890ff' }}>¥{depositResult.totalDeposit.toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                </Card>
+                              </Col>
+                              <Col span={12}>
+                                <Card size="small" title="首期款" style={{ backgroundColor: '#f6ffed' }}>
+                                  <div style={{ fontSize: '12px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                      <span>首期租金：</span>
+                                      <span>¥{paymentResult.rentPayment.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                      <span>首期物业费：</span>
+                                      <span>¥{paymentResult.propertyPayment.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
+                                      <span>首期款总计：</span>
+                                      <span style={{ color: '#52c41a' }}>¥{paymentResult.totalPayment.toLocaleString()}</span>
+                                    </div>
+                                    {paymentResult.rentPaymentStartDate && (
+                                      <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
+                                        <div>租金期间：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}</div>
+                                        <div>物业期间：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </Card>
+                              </Col>
+                            </Row>
+
+                            {/* 第二行：合同总金额 */}
+                            {totalAmountResult.grandTotal > 0 && (
+                              <Row gutter={16}>
+                                <Col span={24}>
+                                  <Card 
+                                    size="small" 
+                                    title="合同总金额" 
+                                    style={{ backgroundColor: '#fff7e6', border: '2px solid #ffa940' }}
+                                  >
+                                    <Row gutter={16}>
+                                      <Col span={12}>
+                                        <div style={{ fontSize: '13px' }}>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                            <span style={{ fontWeight: 'bold' }}>签约租金总额：</span>
+                                            <span style={{ color: '#1890ff', fontSize: '14px', fontWeight: 'bold' }}>
+                                              ¥{totalAmountResult.totalRent.toLocaleString()}
+                                            </span>
+                                          </div>
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                            <span style={{ fontWeight: 'bold' }}>物业费总额：</span>
+                                            <span style={{ color: '#52c41a', fontSize: '14px', fontWeight: 'bold' }}>
+                                              ¥{totalAmountResult.totalPropertyFee.toLocaleString()}
+                                            </span>
+                                          </div>
+                                          <div style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            borderTop: '2px solid #ffa940', 
+                                            paddingTop: '6px', 
+                                            fontSize: '16px', 
+                                            fontWeight: 'bold' 
+                                          }}>
+                                            <span>合同总金额：</span>
+                                            <span style={{ color: '#f5222d' }}>
+                                              ¥{totalAmountResult.grandTotal.toLocaleString()}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </Col>
+                                      <Col span={12}>
+                                        <div style={{ fontSize: '11px', color: '#666' }}>
+                                          <div style={{ marginBottom: '6px', fontWeight: 'bold' }}>各年度租金明细：</div>
+                                          <div style={{ maxHeight: '100px', overflowY: 'auto' }}>
+                                            {totalAmountResult.details.map((detail, index) => (
+                                              <div key={index} style={{ marginBottom: '3px', padding: '3px', backgroundColor: '#f9f9f9', borderRadius: '3px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                  <span>第{detail.year}年：</span>
+                                                  <span>¥{detail.yearRent.toLocaleString()}</span>
+                                                </div>
+                                                <div style={{ fontSize: '10px', color: '#999' }}>
+                                                  ¥{detail.rentPrice}/㎡/天 × {detail.chargingDays}天
+                                                  {detail.freeRentDays > 0 && ` (免租${detail.freeRentDays}天)`}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </Col>
+                                    </Row>
+                                  </Card>
+                                </Col>
+                              </Row>
+                            )}
+                          </div>
                         );
                       })()}
                     </Card>

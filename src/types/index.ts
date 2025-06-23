@@ -114,11 +114,13 @@ export interface DetailedPotentialProject {
     paymentMethod: string;                // 付款方式
     startDate: string;                    // 起租日
     rentIncreases: RentIncrease[];        // 租金递增
-    freeRentPeriods: FreeRentPeriod[];    // 免租期
+    freeRentPeriods: FreeRentPeriod[];    // 租金免租期
     depositItems: string[];               // 租赁保证金包含项目
     firstPaymentDate: string;             // 首款支付日期
     depositPaymentDate: string;           // 保证金支付日期
     propertyFeePrice: number;             // 物业费单价
+    propertyFeeCalculationMethod: 'independent' | 'sync_with_rent'; // 物业费计费方式
+    propertyFeeFreeRentPeriods: FreeRentPeriod[]; // 物业费免租期
     intentionLevel: number;               // 合作意向程度 (0-100)
   };
 
