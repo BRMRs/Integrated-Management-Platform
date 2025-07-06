@@ -40,12 +40,26 @@ import {
   CalendarOutlined,
   UserOutlined,
   UploadOutlined,
-  MinusCircleOutlined
+  MinusCircleOutlined,
+  CheckOutlined,
+  CameraOutlined,
+  ScanOutlined,
+  DatabaseOutlined,
+  FileTextOutlined,
+  EyeOutlined as PreviewOutlined,
+  DownloadOutlined,
+  CloudUploadOutlined,
+  SettingOutlined,
+  LinkOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { DetailedPotentialProject, PotentialProjectFilters, ProjectFollowUpRecord, RentIncrease, FreeRentPeriod, ContractFile } from '../types';
-import { useAuth } from '../store';
+import { DetailedPotentialProject, PotentialProjectFilters, ProjectFollowUpRecord, RentIncrease, FreeRentPeriod, ContractFile, SignedProject, ContractTemplate, AutoFieldMapping, TemplateUploadConfig } from '../types';
+import { useAuth, useAppStore } from '../store';
 import dayjs from 'dayjs';
+import mammoth from 'mammoth';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
+import PizZip from 'pizzip';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -125,7 +139,8 @@ const mockData: DetailedPotentialProject[] = [
       accommodation: '附近有高端住宅区',
       transportation: '地铁1号线、2号线交汇',
       parking: '地面停车场',
-      isIncubator: false
+      isIncubator: false,
+      intentionLevel: 50
     },
     followUpRecords: [
       { id: '1', content: '初步了解项目情况', user: '李四', time: '2024-01-18 16:00' }
@@ -203,6 +218,7 @@ const mockData: DetailedPotentialProject[] = [
 
 const PotentialProjects: React.FC = () => {
   const { user } = useAuth();
+  const { addSignedProject } = useAppStore();
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
   const [followUpForm] = Form.useForm();
@@ -216,13 +232,31 @@ const PotentialProjects: React.FC = () => {
   // 弹窗状态
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
+  const [signContractModalVisible, setSignContractModalVisible] = useState(false);
+  const [followUpModalVisible, setFollowUpModalVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<DetailedPotentialProject | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState<string>('前期洽谈');
+  const [currentPhase, setCurrentPhase] = useState<string>('市场调研');
+  
+  // 甲方信息识别相关状态
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [companySearchLoading, setCompanySearchLoading] = useState(false);
+  const [companySearchResults, setCompanySearchResults] = useState<any[]>([]);
+  const [showCompanySearch, setShowCompanySearch] = useState(false);
+  
+  // 合同模板相关状态
+  const [contractTemplates, setContractTemplates] = useState<ContractTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<ContractTemplate | null>(null);
+  const [templateModalVisible, setTemplateModalVisible] = useState(false);
+  const [contractPreviewVisible, setContractPreviewVisible] = useState(false);
+  const [generatedContractContent, setGeneratedContractContent] = useState<string>('');
+  const [generatedContractBuffer, setGeneratedContractBuffer] = useState<ArrayBuffer | null>(null);
+  const [templateUploadModalVisible, setTemplateUploadModalVisible] = useState(false);
+  const [fieldMappingModalVisible, setFieldMappingModalVisible] = useState(false);
+  const [uploadingTemplate, setUploadingTemplate] = useState<any>(null);
 
   // 项目阶段选项
   const phaseOptions = [
-    { label: '前期洽谈', value: '前期洽谈', color: '#722ed1' },
     { label: '市场调研', value: '市场调研', color: '#108ee9' },
     { label: '商务条款', value: '商务条款', color: '#f50' },
     { label: '签订合同', value: '签订合同', color: '#87d068' },
@@ -248,92 +282,6 @@ const PotentialProjects: React.FC = () => {
   // 根据阶段渲染不同的表单字段
   const renderPhaseFields = (phase: string) => {
     switch (phase) {
-      case '前期洽谈':
-        return (
-          <>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  label="联系人"
-                  name={['earlyStage', 'contact']}
-                  rules={[{ required: true, message: '请输入联系人' }]}
-                >
-                  <Input placeholder="请输入联系人姓名" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  label="联系电话"
-                  name={['earlyStage', 'contactPhone']}
-                  rules={[{ required: true, message: '请输入联系电话' }]}
-                >
-                  <Input placeholder="请输入联系电话" />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  label="租赁面积"
-                  name={['earlyStage', 'leaseArea']}
-                  rules={[{ required: true, message: '请输入租赁面积' }]}
-                >
-                  <InputNumber
-                    placeholder="请输入租赁面积"
-                    style={{ width: '100%' }}
-                    addonAfter="㎡"
-                    min={0}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  label="租赁单价"
-                  name={['earlyStage', 'leasePrice']}
-                  rules={[{ required: true, message: '请输入租赁单价' }]}
-                >
-                  <InputNumber
-                    placeholder="请输入租赁单价"
-                    style={{ width: '100%' }}
-                    addonAfter="元/㎡/天"
-                    min={0}
-                    step={0.1}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  label="付款方式"
-                  name={['earlyStage', 'paymentMethod']}
-                  rules={[{ required: true, message: '请输入付款方式' }]}
-                >
-                  <Input placeholder="如：押二付六" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  label="合作意向程度"
-                  name={['earlyStage', 'intentionLevel']}
-                  initialValue={20}
-                >
-                  <div>
-                    <Text strong style={{ color: '#1890ff' }}>20%</Text>
-                    <Text style={{ marginLeft: 8, color: '#666' }}>（前期洽谈阶段自动设置）</Text>
-                  </div>
-                </Form.Item>
-              </Col>
-            </Row>
-            <Form.Item
-              label="主要竞争对手"
-              name={['earlyStage', 'mainCompetitors']}
-            >
-              <TextArea placeholder="请输入主要竞争对手信息" rows={3} />
-            </Form.Item>
-          </>
-        );
-
       case '市场调研':
         return (
           <>
@@ -513,6 +461,8 @@ const PotentialProjects: React.FC = () => {
                 </Form.Item>
               </Col>
             </Row>
+            <Row gutter={16}>
+              <Col span={12}>
             <Form.Item
               label="是否孵化器"
               name={['marketResearch', 'isIncubator']}
@@ -520,6 +470,20 @@ const PotentialProjects: React.FC = () => {
             >
               <Switch />
             </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  label="合作意向程度"
+                  name={['marketResearch', 'intentionLevel']}
+                  initialValue={50}
+                >
+                  <div>
+                    <Text strong style={{ color: '#1890ff' }}>50%</Text>
+                    <Text style={{ marginLeft: 8, color: '#666' }}>（市场调研阶段自动设置）</Text>
+                  </div>
+                </Form.Item>
+              </Col>
+            </Row>
           </>
         );
 
@@ -686,7 +650,7 @@ const PotentialProjects: React.FC = () => {
                         const prev = prevValues.businessTerms?.freeRentPeriods?.[name];
                         const cur = curValues.businessTerms?.freeRentPeriods?.[name];
                         return (
-                          prevValues.businessTerms?.startDate !== curValues.businessTerms?.startDate ||
+                        prevValues.businessTerms?.startDate !== curValues.businessTerms?.startDate ||
                           prev?.year !== cur?.year ||
                           prev?.days !== cur?.days ||
                           prev?.startDate !== cur?.startDate
@@ -786,8 +750,8 @@ const PotentialProjects: React.FC = () => {
                                     onChange={(date) => {
                                       // 当开始日期变化时，自动更新结束日期
                                       if (date && days && year && contractStartDate) {
-                                        const newDates = calculateFreeRentDates(contractStartDate, year, days, date);
-                                        if (newDates) {
+                                      const newDates = calculateFreeRentDates(contractStartDate, year, days, date);
+                                      if (newDates) {
                                           setFieldValue(['businessTerms', 'freeRentPeriods', name, 'endDate'], newDates.endDate);
                                         }
                                       }
@@ -1158,55 +1122,55 @@ const PotentialProjects: React.FC = () => {
                   <div>
                     {/* 第一行：保证金和首期款 */}
                     <Row gutter={16} style={{ marginBottom: 16 }}>
-                      <Col span={12}>
-                        <Card size="small" title="租赁保证金计算" style={{ backgroundColor: '#f9f9f9' }}>
-                          <table style={{ width: '100%', fontSize: '12px' }}>
-                            <tbody>
+                    <Col span={12}>
+                      <Card size="small" title="租赁保证金计算" style={{ backgroundColor: '#f9f9f9' }}>
+                        <table style={{ width: '100%', fontSize: '12px' }}>
+                          <tbody>
+                            <tr>
+                              <td>租金保证金：</td>
+                              <td style={{ textAlign: 'right' }}>¥{depositResult.rentDeposit.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                              <td>物业费保证金：</td>
+                              <td style={{ textAlign: 'right' }}>¥{depositResult.propertyDeposit.toLocaleString()}</td>
+                            </tr>
+                            <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
+                              <td>保证金总计：</td>
+                              <td style={{ textAlign: 'right' }}>¥{depositResult.totalDeposit.toLocaleString()}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </Card>
+                    </Col>
+                    <Col span={12}>
+                      <Card size="small" title="首期款计算" style={{ backgroundColor: '#f9f9f9' }}>
+                        <table style={{ width: '100%', fontSize: '12px' }}>
+                          <tbody>
+                            <tr>
+                              <td>首期租金：</td>
+                              <td style={{ textAlign: 'right' }}>¥{paymentResult.rentPayment.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                              <td>首期物业费：</td>
+                              <td style={{ textAlign: 'right' }}>¥{paymentResult.propertyPayment.toLocaleString()}</td>
+                            </tr>
+                            <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
+                              <td>首期款总计：</td>
+                              <td style={{ textAlign: 'right' }}>¥{paymentResult.totalPayment.toLocaleString()}</td>
+                            </tr>
+                            {paymentResult.rentPaymentStartDate && (
                               <tr>
-                                <td>租金保证金：</td>
-                                <td style={{ textAlign: 'right' }}>¥{depositResult.rentDeposit.toLocaleString()}</td>
+                                <td colSpan={2} style={{ fontSize: '11px', color: '#666', paddingTop: '8px' }}>
+                                  租金：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}<br/>
+                                  物业：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}
+                                </td>
                               </tr>
-                              <tr>
-                                <td>物业费保证金：</td>
-                                <td style={{ textAlign: 'right' }}>¥{depositResult.propertyDeposit.toLocaleString()}</td>
-                              </tr>
-                              <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
-                                <td>保证金总计：</td>
-                                <td style={{ textAlign: 'right' }}>¥{depositResult.totalDeposit.toLocaleString()}</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </Card>
-                      </Col>
-                      <Col span={12}>
-                        <Card size="small" title="首期款计算" style={{ backgroundColor: '#f9f9f9' }}>
-                          <table style={{ width: '100%', fontSize: '12px' }}>
-                            <tbody>
-                              <tr>
-                                <td>首期租金：</td>
-                                <td style={{ textAlign: 'right' }}>¥{paymentResult.rentPayment.toLocaleString()}</td>
-                              </tr>
-                              <tr>
-                                <td>首期物业费：</td>
-                                <td style={{ textAlign: 'right' }}>¥{paymentResult.propertyPayment.toLocaleString()}</td>
-                              </tr>
-                              <tr style={{ borderTop: '1px solid #ddd', fontWeight: 'bold' }}>
-                                <td>首期款总计：</td>
-                                <td style={{ textAlign: 'right' }}>¥{paymentResult.totalPayment.toLocaleString()}</td>
-                              </tr>
-                              {paymentResult.rentPaymentStartDate && (
-                                <tr>
-                                  <td colSpan={2} style={{ fontSize: '11px', color: '#666', paddingTop: '8px' }}>
-                                    租金：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}<br/>
-                                    物业：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}
-                                  </td>
-                                </tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </Card>
-                      </Col>
-                    </Row>
+                            )}
+                          </tbody>
+                        </table>
+                      </Card>
+                    </Col>
+                  </Row>
 
                     {/* 第二行：合同总金额 */}
                     {totalAmountResult.grandTotal > 0 && (
@@ -1285,8 +1249,8 @@ const PotentialProjects: React.FC = () => {
               const businessTermsContact = getFieldValue(['businessTerms', 'contact']);
               const businessTermsContactPhone = getFieldValue(['businessTerms', 'contactPhone']);
               
-              return (
-                <>
+        return (
+          <>
                   {/* 商务条款联系信息展示 */}
                   {(businessTermsContact || businessTermsContactPhone) && (
                     <Card size="small" title="商务条款联系信息" style={{ marginBottom: 16, backgroundColor: '#f0f9ff' }}>
@@ -1308,7 +1272,136 @@ const PotentialProjects: React.FC = () => {
                   )}
 
                   {/* 甲方信息 */}
-                  <Card size="small" title="甲方信息" style={{ marginBottom: 16 }}>
+                  <Card 
+                    size="small" 
+                    title={
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>甲方信息</span>
+                        <Space>
+                          <Upload
+                            accept="image/*"
+                            showUploadList={false}
+                            beforeUpload={(file) => {
+                              handleOCRRecognition(file);
+                              return false;
+                            }}
+                          >
+                            <Button 
+                              size="small" 
+                              icon={<CameraOutlined />} 
+                              loading={ocrLoading}
+                              type="primary"
+                              ghost
+                            >
+                              {ocrLoading ? '识别中...' : '营业执照识别'}
+                            </Button>
+                          </Upload>
+                                                     <Button 
+                             size="small" 
+                             icon={<DatabaseOutlined />}
+                             onClick={() => setShowCompanySearch(!showCompanySearch)}
+                             type="primary"
+                             ghost
+                           >
+                             企业信息搜索
+                           </Button>
+                           {/* 调试按钮 - 生产环境中应移除 */}
+                           <Button 
+                             size="small" 
+                             onClick={() => {
+                               const values = editForm.getFieldsValue();
+                               console.log('当前表单值:', values);
+                               message.info('请查看控制台输出');
+                             }}
+                             style={{ marginLeft: 8 }}
+                           >
+                             调试
+                           </Button>
+                        </Space>
+                      </div>
+                    }
+                    style={{ marginBottom: 16 }}
+                  >
+                    {/* 企业信息搜索面板 */}
+                    {showCompanySearch && (
+                      <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f0f9ff', borderRadius: 6 }}>
+                        <Row gutter={16} align="middle">
+                          <Col span={18}>
+                                                         <Input
+                               placeholder="请输入企业名称、统一社会信用代码或法定代表人进行搜索"
+                               prefix={<SearchOutlined />}
+                               onChange={(e) => handleCompanySearch(e.target.value)}
+                               allowClear
+                             />
+                          </Col>
+                          <Col span={6}>
+                            <Button 
+                              onClick={() => setShowCompanySearch(false)}
+                              size="small"
+                            >
+                              收起
+                            </Button>
+                          </Col>
+                        </Row>
+                        
+                        {/* 搜索结果 */}
+                        {companySearchResults.length > 0 && (
+                          <div style={{ marginTop: 12, maxHeight: 300, overflowY: 'auto' }}>
+                            <List
+                              size="small"
+                              dataSource={companySearchResults}
+                              renderItem={(company) => (
+                                <List.Item
+                                  style={{ 
+                                    cursor: 'pointer',
+                                    border: '1px solid #e8e8e8',
+                                    borderRadius: 4,
+                                    marginBottom: 8,
+                                    padding: 12,
+                                    backgroundColor: '#fff'
+                                  }}
+                                  onClick={() => handleSelectCompany(company)}
+                                >
+                                  <List.Item.Meta
+                                    title={
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <Text strong>{company.companyName}</Text>
+                                                                                 <Tag color="green">{company.status}</Tag>
+                                      </div>
+                                    }
+                                    description={
+                                      <div style={{ fontSize: 12, color: '#666' }}>
+                                        <div>统一社会信用代码：{company.taxNumber}</div>
+                                        <div>法定代表人：{company.legalRepresentative}</div>
+                                        <div>注册地址：{company.companyAddress}</div>
+                                        <div>注册资本：{company.registeredCapital} | 成立日期：{company.establishDate}</div>
+                                      </div>
+                                    }
+                                  />
+                                </List.Item>
+                              )}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 使用说明 */}
+                    <Alert
+                      message="智能识别功能说明"
+                      description={
+                        <div>
+                          <p><strong>营业执照识别：</strong>支持上传营业执照图片，自动识别企业信息并填充表单</p>
+                          <p><strong>企业信息搜索：</strong>基于国家企业信用信息公示系统，支持企业名称、统一社会信用代码、法定代表人等关键词搜索</p>
+                          <p><strong>使用建议：</strong>建议优先使用营业执照识别功能，确保信息准确性</p>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      closable
+                    />
+
                     <Row gutter={16}>
                       <Col span={12}>
                         <Form.Item
@@ -1316,7 +1409,14 @@ const PotentialProjects: React.FC = () => {
                           name={['contractSigned', 'partyA', 'companyName']}
                           rules={[{ required: true, message: '请输入甲方企业单位' }]}
                         >
-                          <Input placeholder="请输入甲方企业单位名称" />
+                          <Input 
+                            placeholder="请输入甲方企业单位名称" 
+                            suffix={
+                              <Tooltip title="支持营业执照识别和企业信息搜索">
+                                <ScanOutlined style={{ color: '#1890ff' }} />
+                              </Tooltip>
+                            }
+                          />
                         </Form.Item>
                       </Col>
                       <Col span={12}>
@@ -1395,24 +1495,261 @@ const PotentialProjects: React.FC = () => {
                     </Row>
                   </Card>
 
+                  {/* 合同模板 */}
+                  <Card size="small" title="合同模板" style={{ marginBottom: 16 }}>
+                    <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
+                      <Col span={16}>
+                        <Form.Item
+                          label="选择合同模板"
+                          name={['contractSigned', 'contractTemplate', 'selectedTemplateId']}
+                        >
+                          <Select 
+                            placeholder="请选择合同模板"
+                            onChange={(value) => {
+                              const template = contractTemplates.find(t => t.id === value);
+                              if (template) {
+                                setSelectedTemplate(template);
+                              }
+                            }}
+                            style={{ width: '100%' }}
+                            dropdownRender={(menu) => (
+                              <div>
+                                {menu}
+                                <Divider style={{ margin: '8px 0' }} />
+                                <div style={{ padding: '8px', textAlign: 'center' }}>
+                                  <Space>
+                                    <Button 
+                                      type="link" 
+                                      size="small"
+                                      icon={<FileTextOutlined />}
+                                      onClick={() => setTemplateModalVisible(true)}
+                                    >
+                                      浏览所有模板
+                                    </Button>
+                                    <Upload
+                                      accept=".html,.docx,.doc"
+                                      showUploadList={false}
+                                      beforeUpload={handleUploadTemplate}
+                                    >
+                                      <Button 
+                                        type="link" 
+                                        size="small"
+                                        icon={<CloudUploadOutlined />}
+                                      >
+                                        上传新模板
+                                      </Button>
+                                    </Upload>
+                                  </Space>
+                                </div>
+                              </div>
+                            )}
+                          >
+                            {contractTemplates
+                              .filter(template => template.isActive)
+                              .map(template => (
+                                <Option key={template.id} value={template.id}>
+                                  <div style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    padding: '4px 0',
+                                    minHeight: '32px'
+                                  }}>
+                                    <Text strong style={{ marginRight: 8 }}>{template.name}</Text>
+                                    {template.isDefault && (
+                                      <Tag color="blue" style={{ fontSize: '10px', lineHeight: '16px', margin: '0 2px' }}>
+                                        默认
+                                      </Tag>
+                                    )}
+                                    {template.isCustom && (
+                                      <Tag color="orange" style={{ fontSize: '10px', lineHeight: '16px', margin: '0 2px' }}>
+                                        自定义
+                                      </Tag>
+                                    )}
+                                    <Tag color="green" style={{ fontSize: '10px', lineHeight: '16px', margin: '0 2px' }}>
+                                      {template.type}
+                                    </Tag>
+                                  </div>
+                                </Option>
+                              ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Space>
+                          <Button 
+                            onClick={() => setTemplateModalVisible(true)}
+                            icon={<FileTextOutlined />}
+                            size="small"
+                          >
+                            管理模板
+                          </Button>
+                          <Upload
+                            accept=".html,.docx,.doc"
+                            showUploadList={false}
+                            beforeUpload={handleUploadTemplate}
+                          >
+                            <Button 
+                              icon={<CloudUploadOutlined />}
+                              size="small"
+                              type="dashed"
+                            >
+                              上传模板
+                            </Button>
+                          </Upload>
+                        </Space>
+                      </Col>
+                    </Row>
+
+                    {selectedTemplate && (
+                      <div style={{ 
+                        padding: 12, 
+                        backgroundColor: '#f6f6f6', 
+                        borderRadius: 6, 
+                        marginBottom: 16 
+                      }}>
+                        <Row gutter={16} align="middle">
+                          <Col span={16}>
+                            <div>
+                              <Text strong style={{ color: '#1890ff' }}>
+                                已选择：{selectedTemplate.name}
+                              </Text>
+                                                            {selectedTemplate.isDefault && <Tag color="blue" style={{ marginLeft: 8, fontSize: '11px' }}>默认</Tag>}
+                               {selectedTemplate.isCustom && <Tag color="orange" style={{ marginLeft: 8, fontSize: '11px' }}>自定义</Tag>}
+                               <Tag color="green" style={{ marginLeft: 4, fontSize: '11px' }}>{selectedTemplate.type}</Tag>
+                              <br />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                {selectedTemplate.description}
+                              </Text>
+                            </div>
+                          </Col>
+                          <Col span={8}>
+                            <Space>
+                              <Button 
+                                type="primary" 
+                                size="small"
+                                onClick={handleGenerateContractEnhanced}
+                                icon={<LinkOutlined />}
+                              >
+                                智能生成合同
+                              </Button>
+                              {selectedTemplate.isCustom ? (
+                                <>
+                                  <Button 
+                                    size="small"
+                                    icon={<SettingOutlined />}
+                                    onClick={() => handleEditTemplate(selectedTemplate)}
+                                    title="编辑模板配置"
+                                  >
+                                    编辑
+                                  </Button>
+                                  <Button 
+                                    size="small" 
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => handleDeleteTemplate(selectedTemplate.id)}
+                                    title="删除自定义模板"
+                                  >
+                                    删除
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button 
+                                  size="small" 
+                                  danger
+                                  icon={<DeleteOutlined />}
+                                  onClick={() => handleDeleteTemplate(selectedTemplate.id)}
+                                  title="删除系统模板（高风险操作）"
+                                >
+                                  删除系统模板
+                                </Button>
+                              )}
+                            </Space>
+                          </Col>
+                        </Row>
+                      </div>
+                    )}
+
+                    {generatedContractContent && (
+                      <div style={{ 
+                        padding: 12, 
+                        backgroundColor: '#f0f9ff', 
+                        borderRadius: 6,
+                        border: '1px solid #d6e4ff'
+                      }}>
+                        <Row gutter={16} align="middle">
+                          <Col span={16}>
+                            <div>
+                              <Text strong style={{ color: '#52c41a' }}>
+                                ✓ 合同内容已生成
+                              </Text>
+                              <br />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                基于 {selectedTemplate?.name} 模板生成，包含项目具体信息
+                              </Text>
+                            </div>
+                          </Col>
+                          <Col span={8}>
+                            <Space>
+                              <Button 
+                                size="small"
+                                onClick={handlePreviewContract}
+                                icon={<PreviewOutlined />}
+                              >
+                                预览
+                              </Button>
+                              <Button 
+                                size="small"
+                                onClick={handleDownloadContract}
+                                icon={<DownloadOutlined />}
+                                type="primary"
+                                ghost
+                              >
+                                下载
+                              </Button>
+                            </Space>
+                          </Col>
+                        </Row>
+                      </div>
+                    )}
+
+                    <Alert
+                      message="智能合同模板系统"
+                      description={
+                        <div>
+                          <p><strong>✨ 智能生成：</strong>系统会自动从甲方信息、乙方信息和商务条款中抓取字段，智能填充到合同模板中</p>
+                          <p><strong>📤 自定义模板：</strong>支持上传HTML、DOCX格式的自定义合同模板，系统自动识别变量并配置字段映射</p>
+                          <p><strong>🔗 字段映射：</strong>每个模板都配置了智能字段映射，确保数据准确填充到对应位置</p>
+                          <p><strong>📋 一键生成：</strong>点击"智能生成合同"后，所有可识别的字段将自动填充，无需手动输入</p>
+                        </div>
+                      }
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                      closable
+                    />
+                  </Card>
+
                   {/* 合同文件 */}
                   <Card size="small" title="合同文件">
-                    <Form.Item
-                      label="合同文件"
-                      name={['contractSigned', 'contractFiles']}
-                      rules={[{ required: true, message: '请上传合同文件' }]}
-                    >
-                      <Upload
-                        action="/api/upload"
-                        listType="text"
-                        multiple
-                        beforeUpload={() => false}
-                      >
-                        <Button icon={<UploadOutlined />}>点击上传合同文件</Button>
-                      </Upload>
-                    </Form.Item>
+            <Form.Item
+              label="合同文件"
+              name={['contractSigned', 'contractFiles']}
+              rules={[{ required: true, message: '请上传合同文件' }]}
+            >
+              <Upload
+                action="/api/upload"
+                listType="text"
+                multiple
+                beforeUpload={() => false}
+              >
+                <Button icon={<UploadOutlined />}>点击上传合同文件</Button>
+              </Upload>
+            </Form.Item>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      提示：可以先使用上方的合同模板生成合同文档，然后上传签署后的正式合同文件
+                    </Text>
                   </Card>
-                </>
+          </>
               );
             }}
           </Form.Item>
@@ -1437,6 +1774,128 @@ const PotentialProjects: React.FC = () => {
       default:
         return null;
     }
+  };
+
+  // 转换潜在项目为已签约项目
+  const convertToSignedProject = (potentialProject: DetailedPotentialProject): SignedProject => {
+    const { businessTerms, contractSigned, marketResearch } = potentialProject;
+    
+    if (!businessTerms || !contractSigned) {
+      throw new Error('项目缺少必要的商务条款或合同信息');
+    }
+
+    // 生成合同编号
+    const contractNumber = `HT-${dayjs().format('YYYYMMDD')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+    // 计算合同总金额
+    const totalAmountResult = calculateTotalContractAmount(businessTerms);
+
+    return {
+      id: `SP-${Date.now()}`, // 新的签约项目ID
+      name: potentialProject.name,
+      contractWithLandlord: contractNumber,
+      location: marketResearch?.location || '',
+      totalArea: businessTerms.leaseArea,
+      landlord: businessTerms.contact,
+      landlordContact: businessTerms.contactPhone,
+      rentToLandlord: totalAmountResult.totalRent, // 签约租金总额
+      contractStartDate: businessTerms.startDate,
+      contractEndDate: dayjs(businessTerms.startDate).add(businessTerms.leaseTerm, 'year').subtract(1, 'day').format('YYYY-MM-DD'),
+      status: 'designing', // 默认状态为设计中
+      manager: potentialProject.followUpBy,
+      progress: 0, // 初始进度为0
+      budget: 0, // 预算待定
+      spent: 0, // 已花费为0
+      units: [], // 初始化空的单元数组
+      
+      // 从潜在项目转换来的信息
+      potentialProjectId: potentialProject.id,
+      leaseFloor: businessTerms.leaseFloor,
+      leasePrice: businessTerms.leasePrice,
+      leaseTerm: businessTerms.leaseTerm,
+      paymentMethod: businessTerms.paymentMethod,
+      rentIncreases: businessTerms.rentIncreases,
+      freeRentPeriods: businessTerms.freeRentPeriods,
+      depositItems: businessTerms.depositItems,
+      firstPaymentDate: businessTerms.firstPaymentDate,
+      depositPaymentDate: businessTerms.depositPaymentDate,
+      propertyFeePrice: businessTerms.propertyFeePrice,
+      propertyFeeCalculationMethod: businessTerms.propertyFeeCalculationMethod,
+      propertyFeeFreeRentPeriods: businessTerms.propertyFeeFreeRentPeriods,
+      
+      // 合同双方信息
+      partyA: contractSigned.partyA,
+      partyB: contractSigned.partyB,
+      contractFiles: contractSigned.contractFiles,
+      
+      // 合同金额信息
+      contractAmounts: {
+        totalRentAmount: totalAmountResult.totalRent,
+        totalPropertyFeeAmount: totalAmountResult.totalPropertyFee,
+        totalContractAmount: totalAmountResult.grandTotal,
+        yearlyBreakdown: totalAmountResult.details
+      },
+      
+      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+      updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    };
+  };
+
+  // 处理签约确认
+  const handleSignContract = (record: DetailedPotentialProject) => {
+    if (record.projectPhase !== '签订合同') {
+      message.warning('只有处于"签订合同"阶段的项目才能进行签约确认');
+      return;
+    }
+
+    if (!record.businessTerms || !record.contractSigned) {
+      message.error('项目缺少必要的商务条款或合同信息，无法签约');
+      return;
+    }
+
+    Modal.confirm({
+      title: '确认签约',
+      content: (
+        <div>
+          <p>确定要将项目 <strong>{record.name}</strong> 转入已签约项目管理吗？</p>
+          <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6f6f6', borderRadius: 4 }}>
+            <p><strong>项目信息：</strong></p>
+            <p>租赁面积：{record.businessTerms.leaseArea} ㎡</p>
+            <p>租赁楼层：{record.businessTerms.leaseFloor}</p>
+            <p>租赁单价：{record.businessTerms.leasePrice} 元/㎡/天</p>
+            <p>租赁期限：{record.businessTerms.leaseTerm} 年</p>
+            <p>起租日期：{record.businessTerms.startDate}</p>
+          </div>
+          <Alert 
+            message="签约确认后，该项目将从潜在项目池中移除，并自动创建为已签约项目" 
+            type="info" 
+            style={{ marginTop: 12 }}
+          />
+        </div>
+      ),
+      width: 500,
+      onOk: () => {
+        try {
+          // 转换为已签约项目
+          const signedProject = convertToSignedProject(record);
+          
+          // 添加到已签约项目列表
+          addSignedProject(signedProject);
+          
+          // 从潜在项目列表中移除
+          const newDataSource = dataSource.filter(item => item.id !== record.id);
+          setDataSource(newDataSource);
+          setFilteredData(newDataSource);
+          
+          message.success(`项目 "${record.name}" 已成功签约，合同编号：${signedProject.contractWithLandlord}`);
+        } catch (error) {
+          message.error(`签约失败：${error instanceof Error ? error.message : '未知错误'}`);
+        }
+      },
+      okText: '确认签约',
+      cancelText: '取消',
+      okType: 'primary'
+    });
   };
 
   // 表格列定义
@@ -1503,7 +1962,7 @@ const PotentialProjects: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 200,
       fixed: 'right',
       render: (_, record: DetailedPotentialProject) => (
         <Space size="small">
@@ -1521,6 +1980,16 @@ const PotentialProjects: React.FC = () => {
               onClick={() => handleEdit(record)}
             />
           </Tooltip>
+          {record.projectPhase === '签订合同' && (
+            <Tooltip title="确认签约">
+              <Button
+                type="text"
+                icon={<CheckOutlined />}
+                style={{ color: '#52c41a' }}
+                onClick={() => handleSignContract(record)}
+              />
+            </Tooltip>
+          )}
           <Tooltip title="删除">
             <Popconfirm
               title="确定要删除这个项目吗？"
@@ -1598,15 +2067,20 @@ const PotentialProjects: React.FC = () => {
     setCurrentRecord(null);
     setIsEditing(false);
     editForm.resetFields();
-    setCurrentPhase('前期洽谈');
+    setCurrentPhase('市场调研');
+    
+    // 清理合同模板相关状态
+    setSelectedTemplate(null);
+    setGeneratedContractContent('');
+    
     // 设置默认值
     editForm.setFieldsValue({
-      projectPhase: '前期洽谈',
+      projectPhase: '市场调研',
       priority: 'P1',
       followUpBy: user?.name || '张三',
       nextFollowUpTime: dayjs().add(1, 'day'),
-      earlyStage: {
-        intentionLevel: 20
+      marketResearch: {
+        intentionLevel: 50
       },
       businessTerms: {
         freeRentPeriods: [], // 初始化空的租金免租期数组
@@ -1625,16 +2099,16 @@ const PotentialProjects: React.FC = () => {
     // 处理不同阶段的日期字段
     let formValues: any = { ...record };
     
-    // 处理市场调研阶段的日期字段
-    if (record.projectPhase === '市场调研' && record.marketResearch) {
+    // 处理市场调研阶段的日期字段 - 无论当前阶段是什么，只要有市场调研数据就处理
+    if (record.marketResearch) {
       formValues.marketResearch = {
         ...record.marketResearch,
         buildDate: record.marketResearch.buildDate ? dayjs(record.marketResearch.buildDate) : null
       };
     }
     
-    // 处理商务条款阶段的日期字段
-    if (record.projectPhase === '商务条款' && record.businessTerms) {
+    // 处理商务条款阶段的日期字段 - 无论当前阶段是什么，只要有商务条款数据就处理
+    if (record.businessTerms) {
         formValues.businessTerms = {
           ...record.businessTerms,
           startDate: record.businessTerms.startDate ? dayjs(record.businessTerms.startDate) : null,
@@ -1661,6 +2135,20 @@ const PotentialProjects: React.FC = () => {
     
     if (record.nextFollowUpTime) {
       formValues.nextFollowUpTime = dayjs(record.nextFollowUpTime);
+    }
+    
+    // 处理合同模板相关数据
+    if (record.contractSigned?.contractTemplate) {
+      const templateId = record.contractSigned.contractTemplate.selectedTemplateId;
+      if (templateId) {
+        const template = contractTemplates.find(t => t.id === templateId);
+        if (template) {
+          setSelectedTemplate(template);
+        }
+      }
+      if (record.contractSigned.contractTemplate.generatedContent) {
+        setGeneratedContractContent(record.contractSigned.contractTemplate.generatedContent);
+      }
     }
     
     editForm.setFieldsValue(formValues);
@@ -1696,9 +2184,6 @@ const PotentialProjects: React.FC = () => {
       const intentionLevel = getIntentionLevelByPhase(processedValues.projectPhase);
       
       // 根据不同阶段设置合作意向程度
-      if (processedValues.earlyStage) {
-        processedValues.earlyStage.intentionLevel = intentionLevel;
-      }
       if (processedValues.marketResearch) {
         processedValues.marketResearch.intentionLevel = intentionLevel;
       }
@@ -1762,16 +2247,42 @@ const PotentialProjects: React.FC = () => {
         processedValues.nextFollowUpTime = processedValues.nextFollowUpTime.format('YYYY-MM-DD HH:mm:ss');
       }
 
-      const newRecord: DetailedPotentialProject = {
-        id: isEditing ? currentRecord!.id : `${Date.now()}`,
+      let newRecord: DetailedPotentialProject;
+      
+      if (isEditing) {
+        // 编辑模式：保留原有记录的所有数据，只更新表单中的字段
+        newRecord = {
+          ...currentRecord!,  // 先保留原有的所有数据
+          // 更新基础字段
+          name: processedValues.name,
+          projectPhase: processedValues.projectPhase,
+          priority: processedValues.priority,
+          nextFollowUpTime: processedValues.nextFollowUpTime || now,
+          followUpBy: processedValues.followUpBy || user?.name || '',
+          notes: processedValues.notes,
+          // 根据当前阶段更新对应的阶段数据
+          ...(processedValues.marketResearch && { marketResearch: processedValues.marketResearch }),
+          ...(processedValues.businessTerms && { businessTerms: processedValues.businessTerms }),
+          ...(processedValues.contractSigned && { contractSigned: processedValues.contractSigned }),
+          ...(processedValues.abandoned && { abandoned: processedValues.abandoned }),
+          // 更新时间戳
+          lastFollowUpTime: processedValues.nextFollowUpTime || now,
+          lastFollowUpBy: processedValues.followUpBy || user?.name || '',
+          updatedAt: now
+        };
+      } else {
+        // 新增模式：直接使用处理后的数据
+        newRecord = {
+          id: `${Date.now()}`,
         ...processedValues,
-        followUpRecords: isEditing ? currentRecord!.followUpRecords : [],
+          followUpRecords: [],
         lastFollowUpTime: processedValues.nextFollowUpTime || now,
         lastFollowUpBy: processedValues.followUpBy || user?.name || '',
-        createdBy: isEditing ? currentRecord!.createdBy : user?.name || '',
-        createdAt: isEditing ? currentRecord!.createdAt : now,
+          createdBy: user?.name || '',
+          createdAt: now,
         updatedAt: now
       };
+      }
 
       let newData;
       if (isEditing) {
@@ -1786,7 +2297,7 @@ const PotentialProjects: React.FC = () => {
       setFilteredData(newData);
       setEditModalVisible(false);
       editForm.resetFields();
-      setCurrentPhase('前期洽谈');
+      setCurrentPhase('市场调研');
       message.success(isEditing ? '更新成功' : '添加成功');
     } catch (error) {
       message.error('保存失败');
@@ -1853,16 +2364,1225 @@ const PotentialProjects: React.FC = () => {
     }
   }, [editForm]);
 
+  // 初始化合同模板数据
+  useEffect(() => {
+    // 模拟加载合同模板数据
+    const mockTemplates: ContractTemplate[] = [
+      {
+        id: '1',
+        name: '标准租赁合同模板',
+        description: '适用于一般商业场地租赁的标准合同模板',
+        type: 'lease',
+        content: `
+          <h2 style="text-align: center;">场地租赁合同</h2>
+          <p><strong>甲方（出租方）：</strong>{{partyA.companyName}}</p>
+          <p><strong>统一社会信用代码：</strong>{{partyA.taxNumber}}</p>
+          <p><strong>地址：</strong>{{partyA.companyAddress}}</p>
+          <p><strong>法定代表人：</strong>{{partyA.legalRepresentative}}</p>
+          <br/>
+          <p><strong>乙方（承租方）：</strong>{{partyB.companyName}}</p>
+          <p><strong>统一社会信用代码：</strong>{{partyB.taxNumber}}</p>
+          <p><strong>地址：</strong>{{partyB.companyAddress}}</p>
+          <p><strong>法定代表人：</strong>{{partyB.legalRepresentative}}</p>
+          <br/>
+          <p>经甲乙双方友好协商，就乙方租赁甲方场地事宜，达成如下协议：</p>
+          <h3>第一条 租赁场地</h3>
+          <p>甲方同意将位于<strong>{{projectLocation}}</strong>的场地出租给乙方使用。</p>
+          <p>租赁面积：<strong>{{leaseArea}}</strong>平方米</p>
+          <p>租赁楼层：<strong>{{leaseFloor}}</strong></p>
+          <h3>第二条 租赁期限</h3>
+          <p>租赁期限为<strong>{{leaseTerm}}</strong>年，自<strong>{{startDate}}</strong>起至<strong>{{endDate}}</strong>止。</p>
+          <h3>第三条 租金及支付方式</h3>
+          <p>租金单价：每平方米每天人民币<strong>{{leasePrice}}</strong>元</p>
+          <p>月租金总额：人民币<strong>{{monthlyRent}}</strong>元</p>
+          <p>支付方式：<strong>{{paymentMethod}}</strong></p>
+          <p>物业费单价：每平方米每月人民币<strong>{{propertyFeePrice}}</strong>元</p>
+          {{#if freeRentPeriods}}
+          <h3>第四条 免租期</h3>
+          <p>甲方同意给予乙方以下免租期：</p>
+          <ul>
+          {{#each freeRentPeriods}}
+          <li>第{{year}}年：免租{{days}}天</li>
+          {{/each}}
+          </ul>
+          {{/if}}
+          <h3>第五条 保证金</h3>
+          <p>乙方应在签订本合同时向甲方支付保证金人民币<strong>{{depositAmount}}</strong>元。</p>
+          <h3>第六条 其他条款</h3>
+          <p>1. 乙方应按时支付租金及相关费用；</p>
+          <p>2. 乙方不得擅自转租、分租或改变房屋用途；</p>
+          <p>3. 合同期满，乙方应按时交还场地；</p>
+          <p>4. 本合同自双方签字盖章之日起生效。</p>
+          <br/>
+          <table style="width: 100%; margin-top: 50px;">
+            <tr>
+              <td style="width: 50%; text-align: center;">
+                <p><strong>甲方（盖章）：</strong></p>
+                <br/><br/>
+                <p>代表人：_______________</p>
+                <p>日期：_______________</p>
+              </td>
+              <td style="width: 50%; text-align: center;">
+                <p><strong>乙方（盖章）：</strong></p>
+                <br/><br/>
+                <p>代表人：_______________</p>
+                <p>日期：_______________</p>
+              </td>
+            </tr>
+          </table>
+        `,
+        variables: [
+          { key: 'projectLocation', label: '项目位置', type: 'text', required: true, autoExtract: true, sourceField: 'marketResearch.location' },
+          { key: 'leaseArea', label: '租赁面积', type: 'number', required: true, autoExtract: true, sourceField: 'businessTerms.leaseArea' },
+          { key: 'leaseFloor', label: '租赁楼层', type: 'text', required: true, autoExtract: true, sourceField: 'businessTerms.leaseFloor' },
+          { key: 'leaseTerm', label: '租赁年限', type: 'number', required: true, autoExtract: true, sourceField: 'businessTerms.leaseTerm' },
+          { key: 'startDate', label: '起租日期', type: 'date', required: true, autoExtract: true, sourceField: 'businessTerms.startDate' },
+          { key: 'endDate', label: '结束日期', type: 'date', required: true, autoExtract: true, sourceField: 'calculated' },
+          { key: 'leasePrice', label: '租金单价', type: 'number', required: true, autoExtract: true, sourceField: 'businessTerms.leasePrice' },
+          { key: 'monthlyRent', label: '月租金', type: 'number', required: true, autoExtract: true, sourceField: 'calculated' },
+          { key: 'paymentMethod', label: '付款方式', type: 'text', required: true, autoExtract: true, sourceField: 'businessTerms.paymentMethod' },
+          { key: 'propertyFeePrice', label: '物业费单价', type: 'number', required: true, autoExtract: true, sourceField: 'businessTerms.propertyFeePrice' },
+          { key: 'depositAmount', label: '保证金金额', type: 'number', required: true, autoExtract: true, sourceField: 'calculated' }
+        ],
+        isDefault: true,
+        isActive: true,
+        isCustom: false,
+        fileFormat: 'html',
+        autoMapping: {
+          partyA: {
+            companyName: 'partyA.companyName',
+            taxNumber: 'partyA.taxNumber',
+            companyAddress: 'partyA.companyAddress',
+            legalRepresentative: 'partyA.legalRepresentative'
+          },
+          partyB: {
+            companyName: 'partyB.companyName',
+            taxNumber: 'partyB.taxNumber',
+            companyAddress: 'partyB.companyAddress',
+            legalRepresentative: 'partyB.legalRepresentative'
+          },
+          project: {
+            name: 'projectName',
+            location: 'projectLocation'
+          },
+          businessTerms: {
+            leaseArea: 'leaseArea',
+            leaseFloor: 'leaseFloor',
+            leasePrice: 'leasePrice',
+            leaseTerm: 'leaseTerm',
+            startDate: 'startDate',
+            endDate: 'endDate',
+            paymentMethod: 'paymentMethod',
+            propertyFeePrice: 'propertyFeePrice',
+            freeRentPeriods: 'freeRentPeriods',
+            depositAmount: 'depositAmount',
+            monthlyRent: 'monthlyRent'
+          }
+        },
+        createdBy: '系统',
+        createdAt: '2024-01-01 00:00:00',
+        updatedAt: '2024-01-01 00:00:00',
+        version: '1.0'
+      },
+      {
+        id: '2',
+        name: '共享办公租赁合同',
+        description: '适用于共享办公、联合办公等灵活办公场所的租赁合同',
+        type: 'lease',
+        content: `
+          <h2 style="text-align: center;">共享办公场地租赁合同</h2>
+          <p>本合同适用于灵活办公、共享办公场所的租赁。</p>
+          <p><strong>甲方：</strong>{{partyA.companyName}}</p>
+          <p><strong>乙方：</strong>{{partyB.companyName}}</p>
+          <p>租赁面积：{{leaseArea}}平方米</p>
+          <p>租赁期限：{{leaseTerm}}年</p>
+          <p>特殊条款：提供共享会议室、茶水间等公共设施使用权。</p>
+        `,
+        variables: [
+          { key: 'leaseArea', label: '租赁面积', type: 'number', required: true, autoExtract: true, sourceField: 'businessTerms.leaseArea' },
+          { key: 'leaseTerm', label: '租赁年限', type: 'number', required: true, autoExtract: true, sourceField: 'businessTerms.leaseTerm' }
+        ],
+        isDefault: false,
+        isActive: true,
+        isCustom: false,
+        fileFormat: 'html',
+        autoMapping: {
+          partyA: { companyName: 'partyA.companyName', taxNumber: '', companyAddress: '', legalRepresentative: '' },
+          partyB: { companyName: 'partyB.companyName', taxNumber: '', companyAddress: '', legalRepresentative: '' },
+          project: { name: '', location: '' },
+          businessTerms: { leaseArea: 'leaseArea', leaseFloor: '', leasePrice: '', leaseTerm: 'leaseTerm', startDate: '', endDate: '', paymentMethod: '', propertyFeePrice: '', freeRentPeriods: '', depositAmount: '', monthlyRent: '' }
+        },
+        createdBy: '张三',
+        createdAt: '2024-01-15 10:00:00',
+        updatedAt: '2024-01-15 10:00:00',
+        version: '1.0'
+      },
+      {
+        id: '3',
+        name: '孵化器入驻合同',
+        description: '适用于科技孵化器、创业园区的入驻合同',
+        type: 'service',
+        content: `
+          <h2 style="text-align: center;">孵化器入驻服务合同</h2>
+          <p>本合同除场地租赁外，还包含创业孵化服务。</p>
+          <p><strong>甲方：</strong>{{partyA.companyName}}</p>
+          <p><strong>乙方：</strong>{{partyB.companyName}}</p>
+          <p>服务内容：场地租赁 + 创业指导 + 资源对接</p>
+        `,
+        variables: [
+          { key: 'serviceType', label: '服务类型', type: 'select', required: true, options: ['基础孵化', '深度孵化', '加速器'], autoExtract: false }
+        ],
+        isDefault: false,
+        isActive: true,
+        isCustom: false,
+        fileFormat: 'html',
+        autoMapping: {
+          partyA: { companyName: 'partyA.companyName', taxNumber: '', companyAddress: '', legalRepresentative: '' },
+          partyB: { companyName: 'partyB.companyName', taxNumber: '', companyAddress: '', legalRepresentative: '' },
+          project: { name: '', location: '' },
+          businessTerms: { leaseArea: '', leaseFloor: '', leasePrice: '', leaseTerm: '', startDate: '', endDate: '', paymentMethod: '', propertyFeePrice: '', freeRentPeriods: '', depositAmount: '', monthlyRent: '' }
+        },
+        createdBy: '李四',
+        createdAt: '2024-01-20 14:00:00',
+        updatedAt: '2024-01-20 14:00:00',
+        version: '1.0'
+      }
+    ];
+    setContractTemplates(mockTemplates);
+  }, []);
+
   // 自动设置合作意向程度
   const getIntentionLevelByPhase = (phase: string): number => {
     switch (phase) {
-      case '前期洽谈': return 20;
       case '市场调研': return 50;
       case '商务条款': return 80;
       case '签订合同': return 100;
       case '已放弃': return 0;
-      default: return 20;
+      default: return 50;
     }
+  };
+
+  // OCR识别营业执照
+  const handleOCRRecognition = async (file: File) => {
+    setOcrLoading(true);
+    try {
+      // 模拟OCR识别API调用
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 模拟识别结果
+      const mockOCRResult = {
+        companyName: '北京海淀科技发展有限公司',
+        taxNumber: '91110000123456789X',
+        companyAddress: '北京市海淀区中关村大街1号',
+        legalRepresentative: '张伟',
+        registeredCapital: '1000万元',
+        establishDate: '2020-01-01',
+        businessScope: '技术开发、技术服务、技术咨询'
+      };
+
+      console.log('OCR识别前的表单值:', editForm.getFieldsValue());
+      
+      // 直接设置具体的表单字段，而不是整个对象
+      editForm.setFieldValue(['contractSigned', 'partyA', 'companyName'], mockOCRResult.companyName);
+      editForm.setFieldValue(['contractSigned', 'partyA', 'taxNumber'], mockOCRResult.taxNumber);
+      editForm.setFieldValue(['contractSigned', 'partyA', 'companyAddress'], mockOCRResult.companyAddress);
+      editForm.setFieldValue(['contractSigned', 'partyA', 'legalRepresentative'], mockOCRResult.legalRepresentative);
+      
+      // 验证数据是否正确设置
+      setTimeout(() => {
+        const finalValues = editForm.getFieldsValue();
+        console.log('OCR识别后的表单值:', finalValues.contractSigned?.partyA);
+        console.log('完整的表单值:', finalValues);
+      }, 100);
+      
+      message.success('营业执照识别成功，信息已自动填充');
+    } catch (error) {
+      console.error('OCR识别错误:', error);
+      message.error('OCR识别失败，请重试');
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
+  // 企业信息搜索
+  const handleCompanySearch = async (keyword: string) => {
+    if (!keyword.trim()) {
+      setCompanySearchResults([]);
+      setShowCompanySearch(false);
+      return;
+    }
+
+    setCompanySearchLoading(true);
+    try {
+      // 模拟企业信息搜索API调用
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 模拟搜索结果
+      const mockSearchResults = [
+        {
+          id: '1',
+          companyName: '北京海淀科技发展有限公司',
+          taxNumber: '91110000123456789X',
+          companyAddress: '北京市海淀区中关村大街1号',
+          legalRepresentative: '张伟',
+          registeredCapital: '1000万元',
+          establishDate: '2020-01-01',
+          businessScope: '技术开发、技术服务、技术咨询',
+          status: '存续'
+        },
+        {
+          id: '2',
+          companyName: '北京海淀科技创新有限公司',
+          taxNumber: '91110000987654321Y',
+          companyAddress: '北京市海淀区中关村大街2号',
+          legalRepresentative: '李明',
+          registeredCapital: '2000万元',
+          establishDate: '2019-06-15',
+          businessScope: '软件开发、技术转让、技术推广',
+          status: '存续'
+        },
+        {
+          id: '3',
+          companyName: '海淀科技园发展有限公司',
+          taxNumber: '91110000456789123Z',
+          companyAddress: '北京市海淀区中关村大街3号',
+          legalRepresentative: '王强',
+          registeredCapital: '5000万元',
+          establishDate: '2018-03-20',
+          businessScope: '园区管理、物业服务、企业管理咨询',
+          status: '存续'
+        }
+      ].filter(company => 
+        company.companyName.toLowerCase().includes(keyword.toLowerCase()) ||
+        company.taxNumber.includes(keyword) ||
+        company.legalRepresentative.includes(keyword)
+      );
+
+      setCompanySearchResults(mockSearchResults);
+      setShowCompanySearch(mockSearchResults.length > 0);
+    } catch (error) {
+      message.error('企业信息搜索失败，请重试');
+    } finally {
+      setCompanySearchLoading(false);
+    }
+  };
+
+  // 选择企业信息
+  const handleSelectCompany = (company: any) => {
+    try {
+      console.log('企业搜索前的表单值:', editForm.getFieldsValue());
+      
+      // 直接设置具体的表单字段，而不是整个对象
+      editForm.setFieldValue(['contractSigned', 'partyA', 'companyName'], company.companyName);
+      editForm.setFieldValue(['contractSigned', 'partyA', 'taxNumber'], company.taxNumber);
+      editForm.setFieldValue(['contractSigned', 'partyA', 'companyAddress'], company.companyAddress);
+      editForm.setFieldValue(['contractSigned', 'partyA', 'legalRepresentative'], company.legalRepresentative);
+      
+      // 验证数据是否正确设置
+      setTimeout(() => {
+        const finalValues = editForm.getFieldsValue();
+        console.log('企业搜索后的表单值:', finalValues.contractSigned?.partyA);
+      }, 100);
+      
+      setShowCompanySearch(false);
+      setCompanySearchResults([]);
+      message.success('企业信息已填充');
+    } catch (error) {
+      console.error('填充企业信息错误:', error);
+      message.error('企业信息填充失败，请重试');
+    }
+  };
+
+  // 选择合同模板
+  const handleSelectTemplate = (template: ContractTemplate) => {
+    try {
+      setSelectedTemplate(template);
+      editForm.setFieldValue(['contractSigned', 'contractTemplate', 'selectedTemplateId'], template.id);
+      setTemplateModalVisible(false);
+      
+      // 检查模板是否有字段映射配置
+      if (!template.autoMapping) {
+        message.warning(`已选择模板：${template.name}，但该模板尚未配置字段映射，建议先配置后再生成合同`);
+      } else {
+        message.success(`已选择模板：${template.name}`);
+      }
+    } catch (error) {
+      console.error('选择模板时出错:', error);
+      message.error('选择模板失败，请重试');
+    }
+  };
+
+  // 生成合同内容
+  const handleGenerateContract = () => {
+    if (!selectedTemplate) {
+      message.warning('请先选择合同模板');
+      return;
+    }
+
+    const formValues = editForm.getFieldsValue();
+    const { businessTerms, contractSigned, marketResearch } = formValues;
+
+    // 构建模板变量数据
+    const templateData = {
+      // 甲乙双方信息
+      partyA: contractSigned?.partyA || {},
+      partyB: contractSigned?.partyB || {},
+      
+      // 项目基本信息
+      projectLocation: marketResearch?.location || '',
+      projectName: formValues.name || '',
+      
+      // 租赁信息
+      leaseArea: businessTerms?.leaseArea || 0,
+      leaseFloor: businessTerms?.leaseFloor || '',
+      leaseTerm: businessTerms?.leaseTerm || 0,
+      leasePrice: businessTerms?.leasePrice || 0,
+      paymentMethod: businessTerms?.paymentMethod || '',
+      propertyFeePrice: businessTerms?.propertyFeePrice || 0,
+      
+      // 日期信息
+      startDate: businessTerms?.startDate || '',
+      endDate: businessTerms?.startDate ? 
+        dayjs(businessTerms.startDate).add(businessTerms?.leaseTerm || 0, 'year').subtract(1, 'day').format('YYYY-MM-DD') : '',
+      
+      // 计算字段
+      monthlyRent: businessTerms?.leaseArea && businessTerms?.leasePrice ? 
+        Math.round(businessTerms.leaseArea * businessTerms.leasePrice * 30.44) : 0, // 平均每月天数
+      
+      // 免租期信息
+      freeRentPeriods: businessTerms?.freeRentPeriods || [],
+      
+      // 保证金信息
+      depositAmount: (() => {
+        const depositResult = calculateDepositAmount({ businessTerms });
+        return depositResult.totalDeposit;
+      })()
+    };
+
+    // 简单的模板变量替换（实际项目中应使用专业的模板引擎如 Handlebars）
+    let generatedContent = selectedTemplate.content;
+    
+    // 替换简单变量
+    Object.entries(templateData).forEach(([key, value]) => {
+      if (typeof value === 'string' || typeof value === 'number') {
+        const regex = new RegExp(`{{${key}}}`, 'g');
+        generatedContent = generatedContent.replace(regex, String(value));
+      }
+    });
+
+    // 替换嵌套对象变量
+    Object.entries(templateData.partyA).forEach(([key, value]) => {
+      const regex = new RegExp(`{{partyA\\.${key}}}`, 'g');
+      generatedContent = generatedContent.replace(regex, String(value || ''));
+    });
+
+    Object.entries(templateData.partyB).forEach(([key, value]) => {
+      const regex = new RegExp(`{{partyB\\.${key}}}`, 'g');
+      generatedContent = generatedContent.replace(regex, String(value || ''));
+    });
+
+    // 处理免租期列表（简化处理）
+    if (templateData.freeRentPeriods.length > 0) {
+      const freeRentHtml = templateData.freeRentPeriods
+        .map((period: any) => `<li>第${period.year}年：免租${period.days}天</li>`)
+        .join('');
+      generatedContent = generatedContent.replace(/{{#if freeRentPeriods}}[\s\S]*?{{\/if}}/g, 
+        `<h3>第四条 免租期</h3><p>甲方同意给予乙方以下免租期：</p><ul>${freeRentHtml}</ul>`);
+    } else {
+      generatedContent = generatedContent.replace(/{{#if freeRentPeriods}}[\s\S]*?{{\/if}}/g, '');
+    }
+
+    // 清理未替换的变量
+    generatedContent = generatedContent.replace(/{{[^}]*}}/g, '___________');
+
+    setGeneratedContractContent(generatedContent);
+    editForm.setFieldValue(['contractSigned', 'contractTemplate', 'generatedContent'], generatedContent);
+    editForm.setFieldValue(['contractSigned', 'contractTemplate', 'templateVariables'], templateData);
+    
+    message.success('合同内容生成成功');
+  };
+
+  // 预览合同
+  const handlePreviewContract = () => {
+    if (!generatedContractContent) {
+      message.warning('请先生成合同内容');
+      return;
+    }
+    setContractPreviewVisible(true);
+  };
+
+  // 下载合同
+  const handleDownloadContract = async () => {
+    if (!generatedContractContent) {
+      message.warning('请先生成合同内容');
+      return;
+    }
+
+    try {
+      const projectName = editForm.getFieldValue('name') || '未知项目';
+      const templateName = selectedTemplate?.name || '未知模板';
+      const fileName = `合同-${projectName}-${templateName}-${dayjs().format('YYYY-MM-DD')}`;
+
+      // 判断原模板格式决定下载格式
+      if (selectedTemplate?.fileFormat === 'docx' || selectedTemplate?.originalFileName?.endsWith('.docx')) {
+        // 如果有生成的DOCX缓冲区，直接下载；否则转换HTML为DOCX
+        if (generatedContractBuffer) {
+          downloadGeneratedDocx(generatedContractBuffer, fileName);
+        } else {
+          await downloadAsDocx(generatedContractContent, fileName);
+        }
+      } else {
+        // 下载为HTML格式
+        downloadAsHtml(generatedContractContent, fileName);
+      }
+      
+      message.success('合同文件下载成功');
+    } catch (error) {
+      console.error('下载失败:', error);
+      message.error('合同文件下载失败，请重试');
+    }
+  };
+
+  // 下载为HTML格式
+  const downloadAsHtml = (content: string, fileName: string) => {
+    const fullHtml = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fileName}</title>
+    <style>
+        body { font-family: 'Microsoft YaHei', '宋体', Arial, sans-serif; line-height: 1.6; margin: 40px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .signature-area { margin-top: 50px; }
+        @media print { body { margin: 20px; } }
+    </style>
+</head>
+<body>
+    ${content}
+</body>
+</html>`;
+    
+    const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+    saveAs(blob, `${fileName}.html`);
+  };
+
+  // 下载生成的DOCX文件
+  const downloadGeneratedDocx = (buffer: ArrayBuffer, fileName: string) => {
+    const blob = new Blob([buffer], { 
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+    });
+    saveAs(blob, `${fileName}.docx`);
+  };
+
+  // 下载为DOCX格式
+  const downloadAsDocx = async (htmlContent: string, fileName: string) => {
+    try {
+      // 简单的HTML到文本转换（移除HTML标签）
+      const textContent = htmlContent
+        .replace(/<h[1-6][^>]*>/gi, '\n\n')
+        .replace(/<\/h[1-6]>/gi, '\n')
+        .replace(/<p[^>]*>/gi, '\n')
+        .replace(/<\/p>/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<strong[^>]*>|<\/strong>/gi, '')
+        .replace(/<b[^>]*>|<\/b>/gi, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/\n\s*\n/g, '\n\n')
+        .trim();
+
+      // 创建DOCX文档
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: textContent.split('\n\n').map(paragraph => 
+            new Paragraph({
+              children: [new TextRun({
+                text: paragraph.trim(),
+                font: "Microsoft YaHei"
+              })]
+            })
+          )
+        }]
+      });
+
+      // 生成DOCX文件
+      const buffer = await Packer.toBuffer(doc);
+      const blob = new Blob([buffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
+      saveAs(blob, `${fileName}.docx`);
+    } catch (error) {
+      console.error('DOCX生成失败:', error);
+      // 如果DOCX生成失败，回退到HTML格式
+      downloadAsHtml(htmlContent, fileName);
+      message.warning('DOCX格式生成失败，已改为HTML格式下载');
+    }
+  };
+
+  // 智能提取字段值
+  const extractFieldValue = (sourceField: string, formData: any): any => {
+    if (sourceField === 'calculated') {
+      return null; // 计算字段需要特殊处理
+    }
+    
+    const keys = sourceField.split('.');
+    let value = formData;
+    
+    for (const key of keys) {
+      if (value && typeof value === 'object' && key in value) {
+        value = value[key];
+      } else {
+        return null;
+      }
+    }
+    
+    return value;
+  };
+
+  // 智能字段匹配：根据变量名自动匹配表单数据
+  const smartFieldMapping = (variableName: string, formData: any): any => {
+    const { businessTerms, contractSigned, marketResearch } = formData;
+    
+    // 常见字段映射规则
+    const fieldMappingRules: Record<string, any> = {
+      // 甲方信息 - 支持更多变量名格式
+      '甲方': contractSigned?.partyA?.companyName,
+      '甲方公司': contractSigned?.partyA?.companyName,
+      '甲方单位': contractSigned?.partyA?.companyName,
+      '甲方名称': contractSigned?.partyA?.companyName,
+      'partyA': contractSigned?.partyA?.companyName,
+      'partyACompany': contractSigned?.partyA?.companyName,
+      'companyA': contractSigned?.partyA?.companyName,
+      '甲方地址': contractSigned?.partyA?.companyAddress,
+      'partyAAddress': contractSigned?.partyA?.companyAddress,
+      '甲方法人': contractSigned?.partyA?.legalRepresentative,
+      'partyALegal': contractSigned?.partyA?.legalRepresentative,
+      '甲方税号': contractSigned?.partyA?.taxNumber,
+      'partyATaxNumber': contractSigned?.partyA?.taxNumber,
+      
+      // 乙方信息 - 支持更多变量名格式
+      '乙方': contractSigned?.partyB?.companyName,
+      '乙方公司': contractSigned?.partyB?.companyName,
+      '乙方单位': contractSigned?.partyB?.companyName,
+      '乙方名称': contractSigned?.partyB?.companyName,
+      'partyB': contractSigned?.partyB?.companyName,
+      'partyBCompany': contractSigned?.partyB?.companyName,
+      'companyB': contractSigned?.partyB?.companyName,
+      '乙方地址': contractSigned?.partyB?.companyAddress,
+      'partyBAddress': contractSigned?.partyB?.companyAddress,
+      '乙方法人': contractSigned?.partyB?.legalRepresentative,
+      'partyBLegal': contractSigned?.partyB?.legalRepresentative,
+      '乙方税号': contractSigned?.partyB?.taxNumber,
+      'partyBTaxNumber': contractSigned?.partyB?.taxNumber,
+      
+      // 项目信息
+      '项目名称': formData.name,
+      '项目': formData.name,
+      'projectName': formData.name,
+      'project': formData.name,
+      '项目位置': marketResearch?.location,
+      '位置': marketResearch?.location,
+      'location': marketResearch?.location,
+      
+      // 商务条款
+      '租赁面积': businessTerms?.leaseArea,
+      '面积': businessTerms?.leaseArea,
+      'area': businessTerms?.leaseArea,
+      'leaseArea': businessTerms?.leaseArea,
+      '租赁楼层': businessTerms?.leaseFloor,
+      '楼层': businessTerms?.leaseFloor,
+      'floor': businessTerms?.leaseFloor,
+      '租金': businessTerms?.leasePrice,
+      '租赁单价': businessTerms?.leasePrice,
+      '单价': businessTerms?.leasePrice,
+      'price': businessTerms?.leasePrice,
+      'rent': businessTerms?.leasePrice,
+      '租期': businessTerms?.leaseTerm,
+      '租赁期限': businessTerms?.leaseTerm,
+      '年限': businessTerms?.leaseTerm,
+      'term': businessTerms?.leaseTerm,
+      '起租日': businessTerms?.startDate,
+      '开始日期': businessTerms?.startDate,
+      'startDate': businessTerms?.startDate,
+      '付款方式': businessTerms?.paymentMethod,
+      'paymentMethod': businessTerms?.paymentMethod,
+      '物业费': businessTerms?.propertyFeePrice,
+      'propertyFee': businessTerms?.propertyFeePrice,
+    };
+
+    // 计算字段
+    if (variableName.includes('结束') || variableName.includes('到期') || variableName === 'endDate') {
+      if (businessTerms?.startDate && businessTerms?.leaseTerm) {
+        return dayjs(businessTerms.startDate)
+          .add(businessTerms.leaseTerm, 'year')
+          .subtract(1, 'day')
+          .format('YYYY-MM-DD');
+      }
+    }
+
+    if (variableName.includes('月租') || variableName === 'monthlyRent') {
+      if (businessTerms?.leaseArea && businessTerms?.leasePrice) {
+        return Math.round(businessTerms.leaseArea * businessTerms.leasePrice * 30.44);
+      }
+    }
+
+    if (variableName.includes('保证金') || variableName === 'deposit') {
+      const depositResult = calculateDepositAmount({ businessTerms });
+      return depositResult.totalDeposit;
+    }
+
+    // 直接匹配
+    if (fieldMappingRules[variableName] !== undefined) {
+      return fieldMappingRules[variableName];
+    }
+
+    // 模糊匹配
+    for (const [pattern, value] of Object.entries(fieldMappingRules)) {
+      if (variableName.toLowerCase().includes(pattern.toLowerCase()) || 
+          pattern.toLowerCase().includes(variableName.toLowerCase())) {
+        return value;
+      }
+    }
+
+    return null;
+  };
+
+  // 替换DOCX文件中的变量
+  const replaceVariablesInDocx = async (arrayBuffer: ArrayBuffer, templateData: Record<string, any>): Promise<ArrayBuffer> => {
+    try {
+      // 使用PizZip解析DOCX文件
+      const zip = new PizZip(arrayBuffer);
+      
+      // 获取document.xml文件（包含主要内容）
+      const documentXml = zip.file('word/document.xml')?.asText();
+      
+      if (!documentXml) {
+        throw new Error('无法读取DOCX文件内容');
+      }
+      
+      console.log('原始XML中的变量:');
+      const foundVariables = documentXml.match(/{{[^}]*}}/g);
+      console.log('找到的变量:', foundVariables);
+      console.log('要替换的数据:', templateData);
+      
+      // 替换变量
+      let processedXml = documentXml;
+      
+      // 首先尝试处理被XML标签分割的变量
+      // Word可能将{{partyACompany}}分割为多个<w:t>标签
+      processedXml = cleanupSplitVariables(processedXml);
+      
+      Object.entries(templateData).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          const valueStr = String(value);
+          console.log(`替换变量: {{${key}}} -> ${valueStr}`);
+          
+          // 处理DOCX中的文本节点
+          const regex = new RegExp(`{{${key}}}`, 'g');
+          const beforeCount = (processedXml.match(regex) || []).length;
+          processedXml = processedXml.replace(regex, valueStr);
+          const afterCount = (processedXml.match(regex) || []).length;
+          
+          console.log(`变量 {{${key}}} 替换了 ${beforeCount - afterCount} 次`);
+        }
+      });
+      
+      console.log('替换后剩余的变量:');
+      const remainingVariables = processedXml.match(/{{[^}]*}}/g);
+      console.log('剩余变量:', remainingVariables);
+      
+      // 清理未替换的变量
+      processedXml = processedXml.replace(/{{[^}]*}}/g, '_______');
+      
+      // 将修改后的内容放回zip
+      zip.file('word/document.xml', processedXml);
+      
+      // 生成新的ArrayBuffer
+      const outputBuffer = zip.generate({ 
+        type: 'arraybuffer',
+        compression: 'DEFLATE'
+      });
+      
+      return outputBuffer;
+    } catch (error) {
+      console.error('DOCX变量替换失败:', error);
+      // 如果替换失败，返回原始文件
+      return arrayBuffer;
+    }
+  };
+
+  // 清理被XML标签分割的变量
+  const cleanupSplitVariables = (xml: string): string => {
+    // 合并被拆分的 {{xxx}} 变量
+    // 匹配 <w:t>{{</w:t><w:t>xxx</w:t><w:t>}}</w:t> 及类似结构
+    return xml.replace(
+      /<w:t>{{<\/w:t>(?:<[^>]+>)*<w:t>([\w.]+)<\/w:t>(?:<[^>]+>)*<w:t>}}<\/w:t>/g,
+      (match, varName) => `<w:t>{{${varName}}}</w:t>`
+    );
+  };
+
+  // 增强的合同生成函数，支持智能字段映射
+  const handleGenerateContractEnhanced = async () => {
+    if (!selectedTemplate) {
+      message.warning('请先选择合同模板');
+      return;
+    }
+
+    const formValues = editForm.getFieldsValue();
+    const { businessTerms, contractSigned, marketResearch } = formValues;
+
+    // 检查模板是否有字段映射配置
+    if (!selectedTemplate.autoMapping) {
+      // 如果没有字段映射，使用基础的模板变量提取
+      console.log('模板没有字段映射配置，使用基础变量提取方式');
+      handleGenerateContract();
+      return;
+    }
+
+    // 使用模板的autoMapping配置智能提取数据
+    const templateData: Record<string, any> = {};
+    
+    // 调试信息：帮助排查字段映射问题
+    console.log('=== 字段映射调试信息 ===');
+    console.log('选中模板:', selectedTemplate.name);
+    console.log('模板变量:', selectedTemplate.variables);
+    console.log('字段映射配置:', selectedTemplate.autoMapping);
+    console.log('表单数据:', formValues);
+    
+    // 处理甲方信息
+    if (selectedTemplate.autoMapping.partyA) {
+      Object.entries(selectedTemplate.autoMapping.partyA).forEach(([key, templateVar]) => {
+        if (templateVar && contractSigned?.partyA?.[key as keyof typeof contractSigned.partyA]) {
+          templateData[templateVar] = contractSigned.partyA[key as keyof typeof contractSigned.partyA];
+                      // console.log(`甲方字段映射: ${key} -> ${templateVar} = ${templateData[templateVar]}`);
+        }
+      });
+    }
+
+    // 处理乙方信息
+    if (selectedTemplate.autoMapping.partyB) {
+      Object.entries(selectedTemplate.autoMapping.partyB).forEach(([key, templateVar]) => {
+        if (templateVar && contractSigned?.partyB?.[key as keyof typeof contractSigned.partyB]) {
+          templateData[templateVar] = contractSigned.partyB[key as keyof typeof contractSigned.partyB];
+        }
+      });
+    }
+
+    // 处理项目信息
+    if (selectedTemplate.autoMapping.project) {
+      if (selectedTemplate.autoMapping.project.name) {
+        templateData[selectedTemplate.autoMapping.project.name] = formValues.name || '';
+      }
+      if (selectedTemplate.autoMapping.project.location) {
+        templateData[selectedTemplate.autoMapping.project.location] = marketResearch?.location || '';
+      }
+    }
+
+    // 处理商务条款信息
+    if (selectedTemplate.autoMapping.businessTerms) {
+      Object.entries(selectedTemplate.autoMapping.businessTerms).forEach(([key, templateVar]) => {
+        if (templateVar) {
+          switch (key) {
+            case 'endDate':
+              if (businessTerms?.startDate && businessTerms?.leaseTerm) {
+                templateData[templateVar] = dayjs(businessTerms.startDate)
+                  .add(businessTerms.leaseTerm, 'year')
+                  .subtract(1, 'day')
+                  .format('YYYY-MM-DD');
+              }
+              break;
+            case 'monthlyRent':
+              if (businessTerms?.leaseArea && businessTerms?.leasePrice) {
+                templateData[templateVar] = Math.round(businessTerms.leaseArea * businessTerms.leasePrice * 30.44);
+              }
+              break;
+            case 'depositAmount':
+              const depositResult = calculateDepositAmount({ businessTerms });
+              templateData[templateVar] = depositResult.totalDeposit;
+              break;
+            case 'freeRentPeriods':
+              if (businessTerms?.freeRentPeriods?.length) {
+                templateData[templateVar] = businessTerms.freeRentPeriods;
+              }
+              break;
+            default:
+              if (businessTerms?.[key as keyof typeof businessTerms]) {
+                templateData[templateVar] = businessTerms[key as keyof typeof businessTerms];
+              }
+          }
+        }
+      });
+    }
+
+    // 自动提取模板变量
+    if (selectedTemplate.variables && Array.isArray(selectedTemplate.variables)) {
+      selectedTemplate.variables.forEach(variable => {
+        if (variable.autoExtract && variable.sourceField && !templateData[variable.key]) {
+          const extractedValue = extractFieldValue(variable.sourceField, formValues);
+          if (extractedValue !== null) {
+            templateData[variable.key] = extractedValue;
+            // console.log(`变量自动提取: ${variable.key} = ${extractedValue} (来源: ${variable.sourceField})`);
+          }
+        }
+      });
+    }
+
+    // 智能字段匹配：如果字段映射配置为空，尝试根据变量名自动匹配
+    if (selectedTemplate.variables && Array.isArray(selectedTemplate.variables)) {
+      selectedTemplate.variables.forEach(variable => {
+        if (!templateData[variable.key]) {
+          const smartValue = smartFieldMapping(variable.key, formValues);
+          if (smartValue !== null) {
+            templateData[variable.key] = smartValue;
+            console.log(`智能字段匹配: ${variable.key} = ${smartValue}`);
+          }
+        }
+      });
+    }
+
+    console.log('最终模板数据:', templateData);
+
+    // 根据模板格式生成合同内容
+    let generatedContent: string;
+    let generatedBuffer: ArrayBuffer | null = null;
+
+    if (selectedTemplate.fileFormat === 'docx' && selectedTemplate.originalBuffer) {
+      // DOCX模板处理
+      try {
+        // 使用简单的字符串替换处理DOCX模板
+        const processedBuffer = await replaceVariablesInDocx(selectedTemplate.originalBuffer, templateData);
+        
+        generatedBuffer = processedBuffer;
+        
+        // 为了预览，将处理后的DOCX转换为HTML
+        const htmlResult = await mammoth.convertToHtml({ arrayBuffer: processedBuffer });
+        generatedContent = htmlResult.value;
+      } catch (error) {
+        console.error('DOCX模板处理失败:', error);
+        message.error('DOCX模板处理失败，请检查模板格式');
+        return;
+      }
+    } else {
+      // HTML模板处理
+      generatedContent = selectedTemplate.content;
+      
+      // 替换所有变量
+      Object.entries(templateData).forEach(([key, value]) => {
+        if (typeof value === 'string' || typeof value === 'number') {
+          const regex = new RegExp(`{{${key}}}`, 'g');
+          generatedContent = generatedContent.replace(regex, String(value));
+        }
+      });
+
+      // 处理免租期列表
+      if (templateData.freeRentPeriods && Array.isArray(templateData.freeRentPeriods)) {
+        const freeRentHtml = templateData.freeRentPeriods
+          .map((period: any) => `<li>第${period.year}年：免租${period.days}天</li>`)
+          .join('');
+        generatedContent = generatedContent.replace(/{{#if freeRentPeriods}}[\s\S]*?{{\/if}}/g, 
+          `<h3>第四条 免租期</h3><p>甲方同意给予乙方以下免租期：</p><ul>${freeRentHtml}</ul>`);
+      } else {
+        generatedContent = generatedContent.replace(/{{#if freeRentPeriods}}[\s\S]*?{{\/if}}/g, '');
+      }
+
+      // 清理未替换的变量
+      generatedContent = generatedContent.replace(/{{[^}]*}}/g, '___________');
+    }
+
+    setGeneratedContractContent(generatedContent);
+    setGeneratedContractBuffer(generatedBuffer);
+    editForm.setFieldValue(['contractSigned', 'contractTemplate', 'generatedContent'], generatedContent);
+    editForm.setFieldValue(['contractSigned', 'contractTemplate', 'templateVariables'], templateData);
+    
+    message.success('合同内容已智能生成，所有可识别字段已自动填充');
+  };
+
+  // 上传自定义模板
+  const handleUploadTemplate = async (file: File) => {
+    const uploadConfig: TemplateUploadConfig = {
+      acceptedFormats: ['.html', '.docx', '.doc'],
+      maxFileSize: 10 * 1024 * 1024, // 10MB
+      variablePattern: /{{(\w+)}}/g,
+      autoDetectFields: true
+    };
+
+    // 验证文件格式
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    if (!uploadConfig.acceptedFormats.includes(fileExtension)) {
+      message.error('不支持的文件格式，请上传 HTML、DOCX 或 DOC 文件');
+      return false;
+    }
+
+    // 验证文件大小
+    if (file.size > uploadConfig.maxFileSize) {
+      message.error('文件大小超过限制（最大10MB）');
+      return false;
+    }
+
+    try {
+      // 读取文件内容
+      const fileResult = await readFileContent(file);
+      
+      // 自动检测模板变量
+      const detectedVariables = detectTemplateVariables(fileResult.content, uploadConfig.variablePattern);
+      
+      // 创建新模板对象
+      const newTemplate: ContractTemplate = {
+        id: `custom_${Date.now()}`,
+        name: file.name.replace(fileExtension, ''),
+        description: '用户上传的自定义模板',
+        type: 'other',
+        content: fileResult.content,
+        originalBuffer: fileResult.originalBuffer, // 保存原始DOCX二进制数据
+        variables: detectedVariables,
+        isDefault: false,
+        isActive: true,
+        isCustom: true,
+        fileFormat: fileExtension === '.html' ? 'html' : 'docx',
+        originalFileName: file.name,
+        autoMapping: createDefaultAutoMapping(),
+        createdBy: user?.name || '用户',
+        createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        version: '1.0'
+      };
+
+      setUploadingTemplate(newTemplate);
+      setFieldMappingModalVisible(true);
+      
+    } catch (error) {
+      message.error('文件读取失败，请检查文件格式');
+    }
+
+    return false; // 阻止默认上传行为
+  };
+
+  // 读取文件内容
+  const readFileContent = (file: File): Promise<{ content: string, originalBuffer?: ArrayBuffer }> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+        
+        if (fileExtension === '.html') {
+          // HTML文件直接读取文本
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const content = e.target?.result as string;
+            resolve({ content });
+          };
+          reader.onerror = () => reject(new Error('HTML文件读取失败'));
+          reader.readAsText(file, 'UTF-8');
+        } else if (fileExtension === '.docx' || fileExtension === '.doc') {
+          // DOCX文件保存原始二进制数据和提取的文本
+          const arrayBuffer = await file.arrayBuffer();
+          
+          // 使用mammoth提取纯文本用于变量检测
+          const textResult = await mammoth.extractRawText({ arrayBuffer });
+          
+          resolve({ 
+            content: textResult.value,
+            originalBuffer: arrayBuffer 
+          });
+        } else {
+          reject(new Error('不支持的文件格式'));
+        }
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  // 检测模板变量
+  const detectTemplateVariables = (content: string, pattern: RegExp): any[] => {
+    const variables: any[] = [];
+    const uniqueKeys = new Set<string>();
+    let match;
+
+    // 重置正则表达式
+    pattern.lastIndex = 0;
+    
+    while ((match = pattern.exec(content)) !== null) {
+      const key = match[1];
+      if (!uniqueKeys.has(key)) {
+        uniqueKeys.add(key);
+        variables.push({
+          key,
+          label: key,
+          type: 'text',
+          required: false,
+          autoExtract: false
+        });
+      }
+    }
+
+    return variables;
+  };
+
+  // 创建默认字段映射
+  const createDefaultAutoMapping = (): AutoFieldMapping => ({
+    partyA: {
+      companyName: '',
+      taxNumber: '',
+      companyAddress: '',
+      legalRepresentative: ''
+    },
+    partyB: {
+      companyName: '',
+      taxNumber: '',
+      companyAddress: '',
+      legalRepresentative: ''
+    },
+    project: {
+      name: '',
+      location: ''
+    },
+    businessTerms: {
+      leaseArea: '',
+      leaseFloor: '',
+      leasePrice: '',
+      leaseTerm: '',
+      startDate: '',
+      endDate: '',
+      paymentMethod: '',
+      propertyFeePrice: '',
+      freeRentPeriods: '',
+      depositAmount: '',
+      monthlyRent: ''
+    }
+  });
+
+  // 保存自定义模板
+  const handleSaveCustomTemplate = (mappingConfig: AutoFieldMapping) => {
+    if (uploadingTemplate) {
+      try {
+        const finalTemplate = {
+          ...uploadingTemplate,
+          autoMapping: mappingConfig || createDefaultAutoMapping(), // 确保有默认配置
+          updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss')
+        };
+        
+        setContractTemplates(prev => [...prev, finalTemplate]);
+        setFieldMappingModalVisible(false);
+        setUploadingTemplate(null);
+        message.success('自定义模板上传成功，已配置字段映射');
+      } catch (error) {
+        console.error('保存模板时出错:', error);
+        message.error('保存模板失败，请重试');
+      }
+    }
+  };
+
+
+
+  // 删除合同模板
+  const handleDeleteTemplate = (templateId: string) => {
+    const template = contractTemplates.find(t => t.id === templateId);
+    if (!template) {
+      message.error('模板不存在');
+      return;
+    }
+
+    // 检查是否正在使用
+    if (selectedTemplate?.id === templateId) {
+      message.warning('当前选中的模板不能删除，请先选择其他模板');
+      return;
+    }
+
+    // 系统模板和自定义模板使用不同的确认对话框
+    if (!template.isCustom) {
+      // 系统模板删除 - 需要更严格的确认
+      Modal.confirm({
+        title: '⚠️ 警告：删除系统模板',
+        content: (
+          <div>
+            <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#fff1f0', borderRadius: 4, border: '1px solid #ffccc7' }}>
+              <p style={{ margin: 0, color: '#cf1322', fontWeight: 'bold' }}>
+                <strong>🚨 高风险操作：</strong>您即将删除系统模板 <strong>"{template.name}"</strong>
+              </p>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ margin: '8px 0', color: '#8c8c8c' }}>
+                <strong>模板信息：</strong>
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20, color: '#8c8c8c' }}>
+                <li>模板类型：{template.isDefault ? '默认系统模板' : '系统模板'}</li>
+                <li>创建人：{template.createdBy}</li>
+                <li>版本：{template.version}</li>
+                <li>最后更新：{template.updatedAt}</li>
+              </ul>
+            </div>
+            <div style={{ padding: 12, backgroundColor: '#fff7e6', borderRadius: 4, border: '1px solid #ffd591' }}>
+              <p style={{ margin: 0, color: '#d48806' }}>
+                <strong>⚠️ 删除后果：</strong>
+              </p>
+              <ul style={{ margin: '8px 0', paddingLeft: 20, color: '#d48806' }}>
+                <li>此模板将永久删除，无法恢复</li>
+                <li>已使用此模板生成的合同不受影响</li>
+                <li>其他用户将无法再使用此模板</li>
+                <li>如果是默认模板，请确保有其他模板可替代</li>
+              </ul>
+            </div>
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <p style={{ margin: 0, color: '#cf1322', fontSize: '14px' }}>
+                请再次确认您要删除系统模板 <strong>"{template.name}"</strong>
+              </p>
+            </div>
+          </div>
+        ),
+        okText: '确认删除系统模板',
+        cancelText: '取消',
+        okType: 'danger',
+        width: 600,
+        onOk: () => {
+          setContractTemplates(prev => prev.filter(t => t.id !== templateId));
+          // 如果删除的是当前选中的模板，清空选择
+          if (selectedTemplate?.id === templateId) {
+            setSelectedTemplate(null);
+          }
+          message.success(`系统模板 "${template.name}" 已删除`);
+        }
+      });
+    } else {
+      // 自定义模板删除 - 使用原有的确认方式
+      Modal.confirm({
+        title: '确认删除自定义模板',
+        content: (
+          <div>
+            <p>确定要删除自定义模板 <strong>"{template.name}"</strong> 吗？</p>
+            <div style={{ marginTop: 12, padding: 12, backgroundColor: '#fff2e8', borderRadius: 4 }}>
+              <p style={{ margin: 0, color: '#d48806' }}>
+                <strong>⚠️ 注意：</strong>删除后无法恢复，如果有项目使用了此模板生成的合同，不会受到影响。
+              </p>
+            </div>
+          </div>
+        ),
+        okText: '确认删除',
+        cancelText: '取消',
+        okType: 'danger',
+        onOk: () => {
+          setContractTemplates(prev => prev.filter(t => t.id !== templateId));
+          // 如果删除的是当前选中的模板，清空选择
+          if (selectedTemplate?.id === templateId) {
+            setSelectedTemplate(null);
+          }
+          message.success(`自定义模板 "${template.name}" 已删除`);
+        }
+      });
+    }
+  };
+
+  // 编辑模板配置
+  const handleEditTemplate = (template: ContractTemplate) => {
+    setUploadingTemplate(template);
+    setFieldMappingModalVisible(true);
   };
 
   // 解析付款方式，提取押几付几
@@ -2584,16 +4304,16 @@ const PotentialProjects: React.FC = () => {
                           <Card size="small" title="商务条款联系信息" style={{ backgroundColor: '#f0f9ff' }}>
                             <Row gutter={16}>
                               {currentRecord.businessTerms.contact && (
-                                <Col span={12}>
+                      <Col span={12}>
                                   <Text strong>联系人：</Text>
                                   <Text>{currentRecord.businessTerms.contact}</Text>
-                                </Col>
+                      </Col>
                               )}
                               {currentRecord.businessTerms.contactPhone && (
-                                <Col span={12}>
+                      <Col span={12}>
                                   <Text strong>联系电话：</Text>
                                   <Text>{currentRecord.businessTerms.contactPhone}</Text>
-                                </Col>
+                      </Col>
                               )}
                             </Row>
                           </Card>
@@ -2605,55 +4325,55 @@ const PotentialProjects: React.FC = () => {
                         <div style={{ marginBottom: 16 }}>
                           <Card size="small" title="甲方信息">
                             <Row gutter={[16, 8]}>
-                              <Col span={12}>
+                      <Col span={12}>
                                 <Text strong>企业单位：</Text>
                                 <Text>{currentRecord.contractSigned.partyA.companyName}</Text>
-                              </Col>
-                              <Col span={12}>
+                      </Col>
+                      <Col span={12}>
                                 <Text strong>税号：</Text>
                                 <Text>{currentRecord.contractSigned.partyA.taxNumber}</Text>
-                              </Col>
-                              <Col span={12}>
+                      </Col>
+                      <Col span={12}>
                                 <Text strong>公司地址：</Text>
                                 <Text>{currentRecord.contractSigned.partyA.companyAddress}</Text>
-                              </Col>
-                              <Col span={12}>
+                      </Col>
+                      <Col span={12}>
                                 <Text strong>法定代表人：</Text>
                                 <Text>{currentRecord.contractSigned.partyA.legalRepresentative}</Text>
-                              </Col>
-                            </Row>
+                      </Col>
+                    </Row>
                           </Card>
-                        </div>
-                      )}
+                  </div>
+                )}
 
                       {/* 乙方信息 */}
                       {currentRecord.contractSigned.partyB && (
                         <div style={{ marginBottom: 16 }}>
                           <Card size="small" title="乙方信息">
-                            <Row gutter={[16, 8]}>
-                              <Col span={12}>
+                    <Row gutter={[16, 8]}>
+                      <Col span={12}>
                                 <Text strong>企业单位：</Text>
                                 <Text>{currentRecord.contractSigned.partyB.companyName}</Text>
-                              </Col>
-                              <Col span={12}>
+                      </Col>
+                      <Col span={12}>
                                 <Text strong>税号：</Text>
                                 <Text>{currentRecord.contractSigned.partyB.taxNumber}</Text>
-                              </Col>
-                              <Col span={12}>
+                      </Col>
+                      <Col span={12}>
                                 <Text strong>公司地址：</Text>
                                 <Text>{currentRecord.contractSigned.partyB.companyAddress}</Text>
-                              </Col>
-                              <Col span={12}>
+                      </Col>
+                      <Col span={12}>
                                 <Text strong>法定代表人：</Text>
                                 <Text>{currentRecord.contractSigned.partyB.legalRepresentative}</Text>
-                              </Col>
-                            </Row>
+                      </Col>
+                    </Row>
                           </Card>
-                        </div>
-                      )}
+                  </div>
+                )}
 
                       {/* 合同文件 */}
-                      <div>
+                  <div>
                         <Text strong>合同文件：</Text>
                         <List
                           size="small"
@@ -2683,36 +4403,36 @@ const PotentialProjects: React.FC = () => {
                         fontWeight: currentRecord.projectPhase === '商务条款' ? 'bold' : 'normal'
                       }}
                     >
-                      <Row gutter={[16, 8]}>
-                        <Col span={12}>
+                    <Row gutter={[16, 8]}>
+                      <Col span={12}>
                           <Text strong>联系人：</Text>
-                          <Text>{currentRecord.businessTerms.contact}</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>{currentRecord.businessTerms.contact}</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>联系电话：</Text>
-                          <Text>{currentRecord.businessTerms.contactPhone}</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>{currentRecord.businessTerms.contactPhone}</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>租赁面积：</Text>
-                          <Text>{currentRecord.businessTerms.leaseArea?.toLocaleString()} ㎡</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>{currentRecord.businessTerms.leaseArea?.toLocaleString()} ㎡</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>租赁楼层：</Text>
-                          <Text>{currentRecord.businessTerms.leaseFloor}</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>{currentRecord.businessTerms.leaseFloor}</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>租赁单价：</Text>
-                          <Text>¥{currentRecord.businessTerms.leasePrice}/㎡/天</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>¥{currentRecord.businessTerms.leasePrice}/㎡/天</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>租赁年限：</Text>
-                          <Text>{currentRecord.businessTerms.leaseTerm} 年</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>{currentRecord.businessTerms.leaseTerm} 年</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>物业费单价：</Text>
-                          <Text>¥{currentRecord.businessTerms.propertyFeePrice}/㎡/月</Text>
-                        </Col>
-                        <Col span={12}>
+                        <Text>¥{currentRecord.businessTerms.propertyFeePrice}/㎡/月</Text>
+                      </Col>
+                      <Col span={12}>
                           <Text strong>物业费计费方式：</Text>
                           <Text>
                             {currentRecord.businessTerms.propertyFeeCalculationMethod === 'sync_with_rent' ? '与租金同步' : '独立计费周期'}
@@ -2720,43 +4440,43 @@ const PotentialProjects: React.FC = () => {
                         </Col>
                         <Col span={12}>
                           <Text strong>合作意向：</Text>
-                          <Progress
-                            percent={currentRecord.businessTerms.intentionLevel}
-                            style={{ width: 150 }}
-                          />
-                        </Col>
-                      </Row>
-                      
-                      {currentRecord.businessTerms.rentIncreases && currentRecord.businessTerms.rentIncreases.length > 0 && (
-                        <div style={{ marginTop: 16 }}>
+                        <Progress
+                          percent={currentRecord.businessTerms.intentionLevel}
+                          style={{ width: 150 }}
+                        />
+                      </Col>
+                    </Row>
+                    
+                    {currentRecord.businessTerms.rentIncreases && currentRecord.businessTerms.rentIncreases.length > 0 && (
+                      <div style={{ marginTop: 16 }}>
                           <Text strong>租金递增：</Text>
-                          <List
-                            size="small"
-                            dataSource={currentRecord.businessTerms.rentIncreases}
-                            renderItem={(item) => (
-                              <List.Item>
-                                {item.increaseTime}: ¥{item.increasedPrice}/㎡/天
-                              </List.Item>
-                            )}
-                          />
-                        </div>
-                      )}
-                      
-                      {currentRecord.businessTerms.freeRentPeriods && currentRecord.businessTerms.freeRentPeriods.length > 0 && (
-                        <div style={{ marginTop: 16 }}>
+                        <List
+                          size="small"
+                          dataSource={currentRecord.businessTerms.rentIncreases}
+                          renderItem={(item) => (
+                            <List.Item>
+                              {item.increaseTime}: ¥{item.increasedPrice}/㎡/天
+                            </List.Item>
+                          )}
+                        />
+                      </div>
+                    )}
+                    
+                    {currentRecord.businessTerms.freeRentPeriods && currentRecord.businessTerms.freeRentPeriods.length > 0 && (
+                      <div style={{ marginTop: 16 }}>
                           <Text strong>租金免租期：</Text>
-                          <List
-                            size="small"
-                            dataSource={currentRecord.businessTerms.freeRentPeriods}
-                            renderItem={(item) => (
-                              <List.Item>
-                                第{item.year}年: {item.days}天
-                                {item.startDate && ` (${item.startDate} ~ ${item.endDate})`}
-                              </List.Item>
-                            )}
-                          />
-                        </div>
-                      )}
+                        <List
+                          size="small"
+                          dataSource={currentRecord.businessTerms.freeRentPeriods}
+                          renderItem={(item) => (
+                            <List.Item>
+                              第{item.year}年: {item.days}天
+                              {item.startDate && ` (${item.startDate} ~ ${item.endDate})`}
+                            </List.Item>
+                          )}
+                        />
+                      </div>
+                    )}
 
                       {currentRecord.businessTerms.propertyFeeFreeRentPeriods && currentRecord.businessTerms.propertyFeeFreeRentPeriods.length > 0 && (
                         <div style={{ marginTop: 16 }}>
@@ -2774,61 +4494,61 @@ const PotentialProjects: React.FC = () => {
                         </div>
                       )}
 
-                      {/* 自动计算结果展示 */}
-                      <Divider style={{ margin: '16px 0' }}>自动计算结果</Divider>
-                      {(() => {
-                        const formData = { businessTerms: currentRecord.businessTerms };
-                        const depositResult = calculateDepositAmount(formData);
-                        const paymentResult = calculateFirstPayment(formData);
+                    {/* 自动计算结果展示 */}
+                    <Divider style={{ margin: '16px 0' }}>自动计算结果</Divider>
+                    {(() => {
+                      const formData = { businessTerms: currentRecord.businessTerms };
+                      const depositResult = calculateDepositAmount(formData);
+                      const paymentResult = calculateFirstPayment(formData);
                         const totalAmountResult = calculateTotalContractAmount(formData);
 
-                        return (
+                      return (
                           <div>
                             {/* 第一行：保证金和首期款 */}
                             <Row gutter={16} style={{ marginBottom: 16 }}>
-                              <Col span={12}>
-                                <Card size="small" title="租赁保证金" style={{ backgroundColor: '#f0f9ff' }}>
-                                  <div style={{ fontSize: '12px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                      <span>租金保证金：</span>
-                                      <span>¥{depositResult.rentDeposit.toLocaleString()}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                      <span>物业费保证金：</span>
-                                      <span>¥{depositResult.propertyDeposit.toLocaleString()}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
-                                      <span>保证金总计：</span>
-                                      <span style={{ color: '#1890ff' }}>¥{depositResult.totalDeposit.toLocaleString()}</span>
-                                    </div>
+                          <Col span={12}>
+                            <Card size="small" title="租赁保证金" style={{ backgroundColor: '#f0f9ff' }}>
+                              <div style={{ fontSize: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span>租金保证金：</span>
+                                  <span>¥{depositResult.rentDeposit.toLocaleString()}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span>物业费保证金：</span>
+                                  <span>¥{depositResult.propertyDeposit.toLocaleString()}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
+                                  <span>保证金总计：</span>
+                                  <span style={{ color: '#1890ff' }}>¥{depositResult.totalDeposit.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </Card>
+                          </Col>
+                          <Col span={12}>
+                            <Card size="small" title="首期款" style={{ backgroundColor: '#f6ffed' }}>
+                              <div style={{ fontSize: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span>首期租金：</span>
+                                  <span>¥{paymentResult.rentPayment.toLocaleString()}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span>首期物业费：</span>
+                                  <span>¥{paymentResult.propertyPayment.toLocaleString()}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
+                                  <span>首期款总计：</span>
+                                  <span style={{ color: '#52c41a' }}>¥{paymentResult.totalPayment.toLocaleString()}</span>
+                                </div>
+                                {paymentResult.rentPaymentStartDate && (
+                                  <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
+                                    <div>租金期间：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}</div>
+                                    <div>物业期间：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}</div>
                                   </div>
-                                </Card>
-                              </Col>
-                              <Col span={12}>
-                                <Card size="small" title="首期款" style={{ backgroundColor: '#f6ffed' }}>
-                                  <div style={{ fontSize: '12px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                      <span>首期租金：</span>
-                                      <span>¥{paymentResult.rentPayment.toLocaleString()}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                      <span>首期物业费：</span>
-                                      <span>¥{paymentResult.propertyPayment.toLocaleString()}</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ddd', paddingTop: '4px', fontWeight: 'bold' }}>
-                                      <span>首期款总计：</span>
-                                      <span style={{ color: '#52c41a' }}>¥{paymentResult.totalPayment.toLocaleString()}</span>
-                                    </div>
-                                    {paymentResult.rentPaymentStartDate && (
-                                      <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
-                                        <div>租金期间：{paymentResult.rentPaymentStartDate} ~ {paymentResult.rentPaymentEndDate}</div>
-                                        <div>物业期间：{paymentResult.propertyPaymentStartDate} ~ {paymentResult.propertyPaymentEndDate}</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </Card>
-                              </Col>
-                            </Row>
+                                )}
+                              </div>
+                            </Card>
+                          </Col>
+                        </Row>
 
                             {/* 第二行：合同总金额 */}
                             {totalAmountResult.grandTotal > 0 && (
@@ -2894,8 +4614,8 @@ const PotentialProjects: React.FC = () => {
                               </Row>
                             )}
                           </div>
-                        );
-                      })()}
+                      );
+                    })()}
                     </Card>
                   </div>
                 )}
@@ -2904,7 +4624,7 @@ const PotentialProjects: React.FC = () => {
                 {currentRecord.marketResearch && (
                   <div style={{ marginBottom: 24 }}>
                     <Card 
-                      size="small" 
+                      size="small"
                       title="市场调研" 
                       headStyle={{ 
                         backgroundColor: currentRecord.projectPhase === '市场调研' ? '#e6f7ff' : '#f5f5f5',
@@ -2948,6 +4668,13 @@ const PotentialProjects: React.FC = () => {
                           <Text strong>是否孵化器：</Text>
                           <Text>{currentRecord.marketResearch.isIncubator ? '是' : '否'}</Text>
                         </Col>
+                        <Col span={12}>
+                          <Text strong>合作意向：</Text>
+                          <Progress
+                            percent={currentRecord.marketResearch.intentionLevel}
+                            style={{ width: 150 }}
+                          />
+                        </Col>
                         {currentRecord.marketResearch.buildDate && (
                           <Col span={12}>
                             <Text strong>建设时间：</Text>
@@ -2971,55 +4698,7 @@ const PotentialProjects: React.FC = () => {
                   </div>
                 )}
 
-                {/* 前期洽谈阶段 */}
-                {currentRecord.earlyStage && (
-                  <div style={{ marginBottom: 24 }}>
-                    <Card 
-                      size="small" 
-                      title="前期洽谈" 
-                      headStyle={{ 
-                        backgroundColor: currentRecord.projectPhase === '前期洽谈' ? '#e6f7ff' : '#f5f5f5',
-                        fontWeight: currentRecord.projectPhase === '前期洽谈' ? 'bold' : 'normal'
-                      }}
-                    >
-                      <Row gutter={[16, 8]}>
-                        <Col span={12}>
-                          <Text strong>联系人：</Text>
-                          <Text>{currentRecord.earlyStage.contact}</Text>
-                        </Col>
-                        <Col span={12}>
-                          <Text strong>联系电话：</Text>
-                          <Text>{currentRecord.earlyStage.contactPhone}</Text>
-                        </Col>
-                        <Col span={12}>
-                          <Text strong>租赁面积：</Text>
-                          <Text>{currentRecord.earlyStage.leaseArea?.toLocaleString()} ㎡</Text>
-                        </Col>
-                        <Col span={12}>
-                          <Text strong>租赁单价：</Text>
-                          <Text>¥{currentRecord.earlyStage.leasePrice}/㎡/天</Text>
-                        </Col>
-                        <Col span={12}>
-                          <Text strong>付款方式：</Text>
-                          <Text>{currentRecord.earlyStage.paymentMethod}</Text>
-                        </Col>
-                        <Col span={12}>
-                          <Text strong>合作意向：</Text>
-                          <Progress
-                            percent={currentRecord.earlyStage.intentionLevel}
-                            style={{ width: 150 }}
-                          />
-                        </Col>
-                        {currentRecord.earlyStage.mainCompetitors && (
-                          <Col span={24}>
-                            <Text strong>主要竞争对手：</Text>
-                            <Text style={{ marginLeft: 8 }}>{currentRecord.earlyStage.mainCompetitors}</Text>
-                          </Col>
-                        )}
-                      </Row>
-                    </Card>
-                  </div>
-                )}
+
               </TabPane>
 
               <TabPane tab="跟进记录" key="2">
@@ -3078,6 +4757,418 @@ const PotentialProjects: React.FC = () => {
           </div>
         )}
       </Drawer>
+
+      {/* 合同模板选择弹窗 */}
+      <Modal
+        title="选择合同模板"
+        open={templateModalVisible}
+        onCancel={() => setTemplateModalVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <List
+          dataSource={contractTemplates.filter(template => template.isActive)}
+          renderItem={(template) => (
+            <List.Item
+              style={{ 
+                cursor: 'pointer',
+                border: '1px solid #f0f0f0',
+                borderRadius: 8,
+                marginBottom: 12,
+                padding: 16
+              }}
+              onClick={() => handleSelectTemplate(template)}
+            >
+              <List.Item.Meta
+                title={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Text strong style={{ fontSize: '16px' }}>{template.name}</Text>
+                    {template.isDefault && <Tag color="blue">默认</Tag>}
+                    {template.isCustom && <Tag color="orange">自定义</Tag>}
+                    <Tag color="green">{template.type}</Tag>
+                  </div>
+                }
+                description={
+                  <div>
+                    <p style={{ margin: '8px 0', color: '#666' }}>{template.description}</p>
+                    <div style={{ fontSize: '12px', color: '#999' }}>
+                      <span>创建人：{template.createdBy}</span>
+                      <span style={{ marginLeft: 16 }}>版本：{template.version}</span>
+                      <span style={{ marginLeft: 16 }}>更新时间：{dayjs(template.updatedAt).format('YYYY-MM-DD')}</span>
+                    </div>
+                  </div>
+                }
+              />
+              <Space>
+                <Button type="primary" size="small">
+                  选择此模板
+                </Button>
+                {template.isCustom ? (
+                  <>
+                    <Button 
+                      size="small" 
+                      icon={<SettingOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditTemplate(template);
+                      }}
+                    >
+                      编辑
+                    </Button>
+                    <Button 
+                      size="small" 
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTemplate(template.id);
+                      }}
+                    >
+                      删除
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Tag color="blue">系统模板</Tag>
+                    <Button 
+                      size="small" 
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTemplate(template.id);
+                      }}
+                      title="删除系统模板（高风险操作）"
+                    >
+                      删除
+                    </Button>
+                  </>
+                )}
+              </Space>
+            </List.Item>
+          )}
+        />
+      </Modal>
+
+      {/* 合同预览弹窗 */}
+      <Modal
+        title="合同预览"
+        open={contractPreviewVisible}
+        onCancel={() => setContractPreviewVisible(false)}
+        width={1000}
+        footer={[
+          <Button key="download" type="primary" onClick={handleDownloadContract} icon={<DownloadOutlined />}>
+            下载合同
+          </Button>,
+          <Button key="close" onClick={() => setContractPreviewVisible(false)}>
+            关闭
+          </Button>
+        ]}
+      >
+        <div 
+          style={{ 
+            maxHeight: '70vh', 
+            overflowY: 'auto',
+            padding: '20px',
+            backgroundColor: '#fff',
+            border: '1px solid #e8e8e8',
+            borderRadius: '6px'
+          }}
+          dangerouslySetInnerHTML={{ __html: generatedContractContent }}
+        />
+      </Modal>
+
+      {/* 字段映射配置弹窗 */}
+      <Modal
+        title={uploadingTemplate?.id.startsWith('custom_') ? '编辑模板字段映射' : '配置模板字段映射'}
+        open={fieldMappingModalVisible}
+        onCancel={() => {
+          setFieldMappingModalVisible(false);
+          setUploadingTemplate(null);
+        }}
+        width={1200}
+        footer={null}
+      >
+        {uploadingTemplate && (
+          <div>
+            <Alert
+              message={uploadingTemplate.id.startsWith('custom_') ? '编辑字段自动映射' : '配置字段自动映射'}
+              description={`为模板 "${uploadingTemplate.name}" ${uploadingTemplate.id.startsWith('custom_') ? '修改' : '配置'}字段映射，以便系统自动填充合同内容。`}
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            
+            <Form
+              layout="vertical"
+              onFinish={(values) => {
+                const isExistingTemplate = contractTemplates.some(t => t.id === uploadingTemplate.id);
+                if (isExistingTemplate) {
+                  // 编辑现有模板
+                  const updatedTemplate = {
+                    ...uploadingTemplate,
+                    autoMapping: values as AutoFieldMapping,
+                    updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss')
+                  };
+                  
+                  setContractTemplates(prev => 
+                    prev.map(template => 
+                      template.id === uploadingTemplate.id ? updatedTemplate : template
+                    )
+                  );
+                  
+                  if (selectedTemplate?.id === uploadingTemplate.id) {
+                    setSelectedTemplate(updatedTemplate);
+                  }
+                  
+                  message.success('模板配置已更新');
+                } else {
+                  // 新增模板
+                  handleSaveCustomTemplate(values as AutoFieldMapping);
+                }
+                setFieldMappingModalVisible(false);
+                setUploadingTemplate(null);
+              }}
+              initialValues={uploadingTemplate.autoMapping}
+            >
+              <Tabs defaultActiveKey="1">
+                <TabPane tab="甲方信息映射" key="1">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        label="企业名称变量"
+                        name={['partyA', 'companyName']}
+                        tooltip="在模板中对应甲方企业名称的变量名，如：{{partyACompany}}"
+                      >
+                        <Input placeholder="如：partyACompany" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="税号变量"
+                        name={['partyA', 'taxNumber']}
+                        tooltip="在模板中对应甲方税号的变量名"
+                      >
+                        <Input placeholder="如：partyATaxNumber" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="公司地址变量"
+                        name={['partyA', 'companyAddress']}
+                        tooltip="在模板中对应甲方地址的变量名"
+                      >
+                        <Input placeholder="如：partyAAddress" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="法定代表人变量"
+                        name={['partyA', 'legalRepresentative']}
+                        tooltip="在模板中对应甲方法定代表人的变量名"
+                      >
+                        <Input placeholder="如：partyALegal" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </TabPane>
+
+                <TabPane tab="乙方信息映射" key="2">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        label="企业名称变量"
+                        name={['partyB', 'companyName']}
+                      >
+                        <Input placeholder="如：partyBCompany" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="税号变量"
+                        name={['partyB', 'taxNumber']}
+                      >
+                        <Input placeholder="如：partyBTaxNumber" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="公司地址变量"
+                        name={['partyB', 'companyAddress']}
+                      >
+                        <Input placeholder="如：partyBAddress" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="法定代表人变量"
+                        name={['partyB', 'legalRepresentative']}
+                      >
+                        <Input placeholder="如：partyBLegal" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </TabPane>
+
+                <TabPane tab="项目信息映射" key="3">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        label="项目名称变量"
+                        name={['project', 'name']}
+                      >
+                        <Input placeholder="如：projectName" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="项目位置变量"
+                        name={['project', 'location']}
+                      >
+                        <Input placeholder="如：projectLocation" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </TabPane>
+
+                <TabPane tab="商务条款映射" key="4">
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item
+                        label="租赁面积变量"
+                        name={['businessTerms', 'leaseArea']}
+                      >
+                        <Input placeholder="如：leaseArea" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="租赁楼层变量"
+                        name={['businessTerms', 'leaseFloor']}
+                      >
+                        <Input placeholder="如：leaseFloor" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="租赁单价变量"
+                        name={['businessTerms', 'leasePrice']}
+                      >
+                        <Input placeholder="如：leasePrice" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="租赁年限变量"
+                        name={['businessTerms', 'leaseTerm']}
+                      >
+                        <Input placeholder="如：leaseTerm" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="起租日期变量"
+                        name={['businessTerms', 'startDate']}
+                      >
+                        <Input placeholder="如：startDate" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="结束日期变量"
+                        name={['businessTerms', 'endDate']}
+                      >
+                        <Input placeholder="如：endDate" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="付款方式变量"
+                        name={['businessTerms', 'paymentMethod']}
+                      >
+                        <Input placeholder="如：paymentMethod" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="物业费单价变量"
+                        name={['businessTerms', 'propertyFeePrice']}
+                      >
+                        <Input placeholder="如：propertyFeePrice" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="月租金变量"
+                        name={['businessTerms', 'monthlyRent']}
+                      >
+                        <Input placeholder="如：monthlyRent" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="保证金变量"
+                        name={['businessTerms', 'depositAmount']}
+                      >
+                        <Input placeholder="如：depositAmount" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item
+                        label="免租期变量"
+                        name={['businessTerms', 'freeRentPeriods']}
+                      >
+                        <Input placeholder="如：freeRentPeriods" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                </TabPane>
+
+                <TabPane tab="检测到的变量" key="5">
+                  <Alert
+                    message="检测到的模板变量"
+                    description="以下是从您上传的模板中自动检测到的变量，请确认这些变量的用途。"
+                    type="success"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                  />
+                  <List
+                    size="small"
+                    dataSource={uploadingTemplate.variables}
+                    renderItem={(variable: any) => (
+                      <List.Item>
+                        <List.Item.Meta
+                          title={`{{${variable.key}}}`}
+                          description={`类型：${variable.type} | 必填：${variable.required ? '是' : '否'}`}
+                        />
+                        <Tag color={variable.autoExtract ? 'green' : 'default'}>
+                          {variable.autoExtract ? '自动提取' : '手动填写'}
+                        </Tag>
+                      </List.Item>
+                    )}
+                  />
+                </TabPane>
+              </Tabs>
+
+              <div style={{ textAlign: 'right', marginTop: 24 }}>
+                <Space>
+                  <Button 
+                    onClick={() => {
+                      setFieldMappingModalVisible(false);
+                      setUploadingTemplate(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                  <Button type="primary" htmlType="submit" icon={<SettingOutlined />}>
+                    {contractTemplates.some(t => t.id === uploadingTemplate?.id) ? '更新配置' : '保存配置'}
+                  </Button>
+                </Space>
+              </div>
+            </Form>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

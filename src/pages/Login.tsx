@@ -94,7 +94,7 @@ const Login: React.FC = () => {
             <LoginOutlined />
           </div>
           <Title level={2} style={{ margin: 0, color: '#1a1a1a' }}>
-            双重生命周期管理系统
+            益企云一体化管理平台
           </Title>
           <Text type="secondary" style={{ fontSize: 16 }}>
             Dual Lifecycle Management System

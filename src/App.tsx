@@ -10,6 +10,7 @@ import ClientContract from './pages/ClientContract';
 import FinanceRevenue from './pages/FinanceRevenue';
 import Reporting from './pages/Reporting';
 import PotentialProjects from './pages/PotentialProjects';
+import SignedProjects from './pages/SignedProjects';
 import { useAuth } from './store';
 
 const { Content } = Layout;
@@ -74,7 +75,7 @@ const App: React.FC = () => {
                       
                       {/* 采购与项目开发 */}
                       <Route path="/procurement/potential-projects" element={<PotentialProjects />} />
-                      <Route path="/procurement/signed-projects" element={<div>签约项目维护</div>} />
+                      <Route path="/procurement/signed-projects" element={<SignedProjects />} />
                       <Route path="/procurement/suppliers" element={<div>供应商管理</div>} />
                       
                       {/* 工程管理 */}

@@ -64,22 +64,11 @@ export interface DetailedPotentialProject {
   
   // 核心信息（所有阶段通用）
   name: string;                           // 潜在项目名称
-  projectPhase: '前期洽谈' | '市场调研' | '商务条款' | '签订合同' | '已放弃';  // 项目阶段
+  projectPhase: '市场调研' | '商务条款' | '签订合同' | '已放弃';  // 项目阶段
   priority: 'P0' | 'P1' | 'P2';          // 项目优先级
   nextFollowUpTime: string;               // 下次跟进时间
   followUpBy: string;                     // 跟进人
   notes?: string;                         // 备注
-
-  // 前期洽谈阶段字段
-  earlyStage?: {
-    contact: string;                      // 联系人
-    contactPhone: string;                 // 联系电话
-    leaseArea: number;                    // 租赁面积
-    leasePrice: number;                   // 租赁单价
-    paymentMethod: string;                // 付款方式
-    intentionLevel: number;               // 合作意向程度 (0-100)
-    mainCompetitors: string;              // 主要竞争对手
-  };
 
   // 市场调研阶段字段
   marketResearch?: {
@@ -101,6 +90,7 @@ export interface DetailedPotentialProject {
     transportation: string;               // 交通情况
     parking: string;                      // 停车配套
     isIncubator: boolean;                 // 是否孵化器
+    intentionLevel: number;               // 合作意向程度 (0-100)
   };
 
   // 商务条款阶段字段
@@ -139,6 +129,11 @@ export interface DetailedPotentialProject {
       legalRepresentative: string;        // 法定代表人
     };
     contractFiles: ContractFile[];        // 合同文件
+    contractTemplate?: {                  // 合同模板相关
+      selectedTemplateId?: string;        // 选中的模板ID
+      generatedContent?: string;          // 生成的合同内容
+      templateVariables?: Record<string, any>; // 模板变量值
+    };
   };
 
   // 已放弃阶段字段
@@ -182,6 +177,85 @@ export interface ContractFile {
   fileSize: number;                       // 文件大小
 }
 
+// 合同模板
+export interface ContractTemplate {
+  id: string;
+  name: string;                           // 模板名称
+  description: string;                    // 模板描述
+  type: 'lease' | 'service' | 'cooperation' | 'other'; // 模板类型
+  content: string;                        // 模板内容（HTML或富文本）
+  originalBuffer?: ArrayBuffer;           // 原始DOCX文件的二进制数据
+  variables: TemplateVariable[];          // 模板变量
+  isDefault: boolean;                     // 是否为默认模板
+  isActive: boolean;                      // 是否启用
+  isCustom: boolean;                      // 是否为用户上传的自定义模板
+  fileFormat: 'html' | 'docx' | 'pdf';   // 模板文件格式
+  originalFileName?: string;              // 原始文件名
+  autoMapping: AutoFieldMapping;          // 自动字段映射配置
+  createdBy: string;                      // 创建人
+  createdAt: string;                      // 创建时间
+  updatedAt: string;                      // 更新时间
+  version: string;                        // 版本号
+}
+
+// 模板变量
+export interface TemplateVariable {
+  key: string;                            // 变量键名
+  label: string;                          // 变量标签
+  type: 'text' | 'number' | 'date' | 'select' | 'boolean' | 'array'; // 变量类型
+  required: boolean;                      // 是否必填
+  defaultValue?: any;                     // 默认值
+  options?: string[];                     // 选项（当type为select时）
+  description?: string;                   // 变量描述
+  sourceField?: string;                   // 来源字段路径（如：businessTerms.leaseArea）
+  autoExtract: boolean;                   // 是否自动提取
+}
+
+// 自动字段映射配置
+export interface AutoFieldMapping {
+  // 甲方信息映射
+  partyA: {
+    companyName: string;                  // 对应模板中的变量名
+    taxNumber: string;
+    companyAddress: string;
+    legalRepresentative: string;
+  };
+  // 乙方信息映射
+  partyB: {
+    companyName: string;
+    taxNumber: string;
+    companyAddress: string;
+    legalRepresentative: string;
+  };
+  // 项目基本信息映射
+  project: {
+    name: string;                         // 项目名称
+    location: string;                     // 项目位置
+  };
+  // 商务条款映射
+  businessTerms: {
+    leaseArea: string;                    // 租赁面积
+    leaseFloor: string;                   // 租赁楼层
+    leasePrice: string;                   // 租赁单价
+    leaseTerm: string;                    // 租赁年限
+    startDate: string;                    // 起租日期
+    endDate: string;                      // 结束日期
+    paymentMethod: string;                // 付款方式
+    propertyFeePrice: string;             // 物业费单价
+    freeRentPeriods: string;              // 免租期列表
+    depositAmount: string;                // 保证金金额
+    monthlyRent: string;                  // 月租金
+  };
+}
+
+// 模板上传配置
+export interface TemplateUploadConfig {
+  acceptedFormats: string[];              // 支持的文件格式
+  maxFileSize: number;                    // 最大文件大小（字节）
+  variablePattern: RegExp;                // 变量识别模式
+  autoDetectFields: boolean;              // 是否自动检测字段
+}
+
 // 项目跟进记录（用于潜在项目）
 export interface ProjectFollowUpRecord {
   id: string;
@@ -198,6 +272,7 @@ export interface SignedProject {
   location: string;
   totalArea: number;
   landlord: string;
+  landlordContact?: string;      // 业主联系方式
   rentToLandlord: number;        // 支付给业主的租金
   contractStartDate: string;
   contractEndDate: string;
@@ -207,6 +282,45 @@ export interface SignedProject {
   budget: number;
   spent: number;
   units: Unit[];                 // 该项目包含的可租赁单元
+  
+  // 从潜在项目转换来的附加信息
+  potentialProjectId?: string;   // 来源潜在项目ID
+  leaseFloor?: string;           // 租赁楼层
+  leasePrice?: number;           // 租赁单价
+  leaseTerm?: number;            // 租赁年限
+  paymentMethod?: string;        // 付款方式
+  rentIncreases?: RentIncrease[]; // 租金递增
+  freeRentPeriods?: FreeRentPeriod[]; // 租金免租期
+  depositItems?: string[];       // 租赁保证金包含项目
+  firstPaymentDate?: string;     // 首款支付日期
+  depositPaymentDate?: string;   // 保证金支付日期
+  propertyFeePrice?: number;     // 物业费单价
+  propertyFeeCalculationMethod?: 'independent' | 'sync_with_rent'; // 物业费计费方式
+  propertyFeeFreeRentPeriods?: FreeRentPeriod[]; // 物业费免租期
+  
+  // 合同双方信息
+  partyA?: {                     // 甲方信息
+    companyName: string;         // 企业单位
+    taxNumber: string;           // 统一社会信用代码/税号
+    companyAddress: string;      // 公司地址
+    legalRepresentative: string; // 法定代表人
+  };
+  partyB?: {                     // 乙方信息
+    companyName: string;         // 企业单位
+    taxNumber: string;           // 统一社会信用代码/税号
+    companyAddress: string;      // 公司地址
+    legalRepresentative: string; // 法定代表人
+  };
+  contractFiles?: ContractFile[]; // 合同文件
+  
+  // 合同金额信息
+  contractAmounts?: {
+    totalRentAmount: number;     // 租金总额
+    totalPropertyFeeAmount: number; // 物业费总额
+    totalContractAmount: number; // 合同总金额
+    yearlyBreakdown: any[];      // 年度明细
+  };
+  
   createdAt: string;
   updatedAt: string;
 }
